@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vizlib"
+version = "0.1.0"
+description = "Tiny exploratory-data-analysis helpers for pandas DataFrames."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+authors = [{ name = "junghoon-an", email = "jan11@dons.usfca.edu" }]
+keywords = ["eda", "pandas", "dataframe", "data-analysis", "visualization"]
+dependencies = ["pandas>=1.3"]
+
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
+
+[project.urls]
+Homepage = "https://github.com/junghoon-an/vizlib"
+Repository = "https://github.com/junghoon-an/vizlib"
+
+[tool.setuptools.packages.find]
+where = ["src"]
