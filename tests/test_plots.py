@@ -8,6 +8,9 @@ import matplotlib
 
 matplotlib.use("Agg")
 
+import inspect  # noqa: E402
+
+import matplotlib.colors as mcolors  # noqa: E402
 import pandas as pd  # noqa: E402
 import pytest  # noqa: E402
 from matplotlib.axes import Axes  # noqa: E402
@@ -139,14 +142,82 @@ def test_ax_is_honored(df):
     assert out is ax
 
 
+# --- checklist behaviors ---------------------------------------------------
+
+
+def test_title_is_left_justified_and_subtitle_present(df):
+    ax = plots.bar(df, "city", title="SF leads by volume", subtitle="n = 6")
+    assert ax.get_title(loc="left") == "SF leads by volume"
+    assert ax.get_title(loc="center") == ""  # placed left, not centered
+    assert any("n = 6" in t.get_text() for t in ax.texts)  # subtitle rendered
+
+
+def test_bar_labels_each_bar_and_hides_value_axis(df):
+    ax = plots.bar(df, "city")
+    assert len(ax.texts) == len(ax.patches)  # one direct label per bar
+    assert not ax.xaxis.get_visible()  # redundant value axis hidden
+
+
+def test_missing_bar_labels_each_bar(df):
+    ax = plots.missing_bar(df)
+    assert len(ax.texts) == len(ax.patches)
+    assert not ax.xaxis.get_visible()
+
+
+def test_value_labels_false_keeps_axis_and_no_labels(df):
+    ax = plots.bar(df["city"], value_labels=False)
+    assert ax.xaxis.get_visible()
+    assert len(ax.texts) == 0
+
+
+def test_highlight_uses_accent_and_muted(df):
+    ax = plots.bar(df["city"], highlight="SF")
+    accent = tuple(round(c, 4) for c in mcolors.to_rgba(plots._THEME["accent"]))
+    muted = tuple(round(c, 4) for c in mcolors.to_rgba(plots._THEME["muted"]))
+    faces = [tuple(round(c, 4) for c in p.get_facecolor()) for p in ax.patches]
+    assert faces.count(accent) == 1  # only SF highlighted
+    assert muted in faces  # the rest de-emphasized
+
+
+def test_bar_has_no_tick_marks(df):
+    ax = plots.bar(df["city"], value_labels=False)
+    ticklines = ax.get_xticklines() + ax.get_yticklines()
+    assert ticklines and all(t.get_markersize() == 0 for t in ticklines)
+
+
+def test_line_keeps_tick_marks(df):
+    ax = plots.line(df, "age", "height")
+    ticklines = ax.get_xticklines() + ax.get_yticklines()
+    assert any(t.get_markersize() > 0 for t in ticklines)
+
+
+def test_box_by_orders_unordered_groups_by_median():
+    d = pd.DataFrame(
+        {"val": [1, 2, 10, 11, 5, 6], "grp": ["a", "a", "b", "b", "c", "c"]}
+    )
+    ax = plots.box(d, "val", by="grp")
+    order = [t.get_text() for t in ax.get_xticklabels()]
+    assert order == ["a", "c", "b"]  # medians 1.5 < 5.5 < 10.5
+
+
+def test_new_params_are_keyword_only():
+    sig = inspect.signature(plots.bar)
+    for name in ("highlight", "value_labels", "precision", "title", "subtitle", "source"):
+        assert sig.parameters[name].kind is inspect.Parameter.KEYWORD_ONLY
+    # existing positional call (data, column) still works unchanged
+    _assert_axes(plots.bar(pd.Series(["a", "a", "b"])))
+
+
 def test_plots_never_mutate_input(df):
     before = df.copy()
-    plots.bar(df, "city")
-    plots.hist(df["age"])
+    plots.bar(df, "city", highlight="SF", title="t", subtitle="s", source="src")
+    plots.hist(df["age"], title="t")
+    plots.distribution(df["age"])
     plots.box(df, "age", by="group")
     plots.scatter(df, "age", "height", hue="group", reg=True)
-    plots.line(df, "age", "height")
-    plots.correlation_heatmap(df)
-    plots.missing_bar(df)
+    plots.line(df, "age", "height", hue="group")
+    plots.correlation_heatmap(df, subtitle="s")
+    plots.missing_bar(df, highlight="city")
     plots.missing_matrix(df)
+    plots.pairplot(df, columns=["age", "height"])
     pd.testing.assert_frame_equal(df, before)

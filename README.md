@@ -72,9 +72,16 @@ from vizlib import plots
 
 df = pd.read_csv("data.csv")
 
-# Value-counts bar chart (graphical twin of value_counts_bar):
-# top-N categories, the rest folded into "Other", sorted, zero baseline.
-plots.bar(df, "city")
+# Value-counts bar chart (graphical twin of value_counts_bar): top-N + "Other",
+# sorted, zero baseline, bars labelled directly. Pass your finding as the title
+# and use highlight= to draw the eye with the action color.
+plots.bar(
+    df, "city",
+    title="Most orders ship from the SF hub",
+    subtitle="FY24 orders, n = 4,812",
+    highlight="SF",
+    source="Source: fulfillment log",
+)
 
 # Distribution of a numeric column, with a KDE overlay.
 plots.hist(df["age"], kde=True)
@@ -90,6 +97,17 @@ Every plot function **returns** the matplotlib `Axes` it drew on (or a
 so plots compose in notebooks and subplot grids — pass `ax=` to draw into
 an existing axis. Call `plots.set_theme(...)` once to customize the shared
 look; the defaults are already colorblind-safe and de-cluttered.
+
+The defaults follow the [Evergreen & Emery Data Visualization
+Checklist](https://stephanieevergreen.com/data-visualization-checklist/):
+left-justified descriptive titles, an optional muted subtitle and `source`
+caption, a readable font hierarchy, dark high-contrast text, muted
+gridlines, direct data labels on bars (with the redundant value axis
+hidden), frequency/median-ordered categories, and honest zero-based
+magnitude axes. The mechanical rules are automatic; the interpretive ones
+are hooks — `title`, `subtitle`, `source`, `highlight` — with neutral
+defaults. **Override `title`/`subtitle` with your actual finding**; the
+default titles are placeholders and vizlib never invents a takeaway.
 
 > The legacy `pip install "vizlib[plot]"` extra still works but is no longer
 > necessary — plotting is installed by default.
@@ -112,20 +130,26 @@ All core functions take a pandas object and never mutate their input.
 
 | Function | What it does |
 | --- | --- |
-| `bar(data, column=None, *, top=15, sort=True, ax=None)` | Value-counts bar chart with top-N + "Other", sorted, zero baseline. |
-| `hist(series, *, bins="auto", kde=False, ax=None)` | Histogram of a numeric Series, optional KDE. |
-| `distribution(series, *, ax=None)` | Histogram + KDE + rug for a quick distribution read. |
-| `box(df, column=None, *, by=None, ax=None)` | Boxplot for spread/outliers, optionally grouped by a category. |
-| `scatter(df, x, y, *, hue=None, reg=False, ax=None)` | Relationship between two numeric columns, optional regression line. |
-| `line(df, x, y, *, hue=None, ax=None)` | Line plot for ordered/time-series data. |
-| `correlation_heatmap(df, *, method="pearson", annot=True, ax=None)` | Masked, annotated correlation matrix on a fixed `[-1, 1]` diverging scale. |
-| `missing_bar(df, *, ax=None)` | Per-column percentage of missing values, largest first. |
-| `missing_matrix(df, *, ax=None)` | Nullity matrix (dark cells mark missing values). |
-| `pairplot(df, *, hue=None, columns=None)` | Scatter-matrix of numeric columns; returns the seaborn grid. |
-| `set_theme(*, palette="colorblind", context="notebook", ...)` | Configure the shared, colorblind-safe look. |
+| `bar(data, column=None, *, top=15, sort=True, highlight=None, value_labels=True, precision=0, ...)` | Value-counts bar chart: top-N + "Other", sorted, zero baseline, bars labelled directly. |
+| `hist(series, *, bins="auto", kde=False, ...)` | Histogram of a numeric Series, optional KDE; zero-based count axis. |
+| `distribution(series, *, ...)` | Histogram + KDE + rug for a quick distribution read. |
+| `box(df, column=None, *, by=None, ...)` | Boxplot for spread/outliers; groups ordered by median. |
+| `scatter(df, x, y, *, hue=None, reg=False, ...)` | Relationship between two numeric columns; frameless legend for `hue`. |
+| `line(df, x, y, *, hue=None, ...)` | Line plot for ordered/time-series data; lines labelled directly. |
+| `correlation_heatmap(df, *, method="pearson", annot=True, ...)` | Masked, annotated correlation matrix on a fixed `[-1, 1]` diverging scale. |
+| `missing_bar(df, *, highlight=None, value_labels=True, precision=1, ...)` | Per-column percentage of missing values, largest first, labelled directly. |
+| `missing_matrix(df, *, ...)` | Nullity matrix (dark cells mark missing values). |
+| `pairplot(df, *, hue=None, columns=None, ...)` | Scatter-matrix of numeric columns; returns the seaborn grid. |
+| `set_theme(*, palette=..., accent=..., muted=..., text_color=..., grid_color=..., title_size=..., ...)` | Configure the shared, colorblind-safe look and font hierarchy. |
 
-Every plotting function takes a pandas object, never mutates it, and
-returns the `Axes`/`Figure` it drew on.
+Every plotting function (except `set_theme`) accepts the keyword-only
+checklist hooks `title=`, `subtitle=`, `source=` and, where it composes,
+`ax=` — shown as `...` above. `bar` and `missing_bar` additionally take
+`highlight=` (accent a label or list of labels), `value_labels=` (direct
+labels, on by default) and `precision=` (label decimals). All new
+parameters are keyword-only with defaults, so existing calls keep working.
+Every plotting function takes a pandas object, never mutates it, and returns
+the `Axes`/`Figure` it drew on.
 
 ## License
 
