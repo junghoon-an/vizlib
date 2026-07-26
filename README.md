@@ -150,6 +150,34 @@ default titles are placeholders and vizlib never invents a takeaway.
 > The legacy `pip install "vizlib[plot]"` extra still works but is no longer
 > necessary — plotting is installed by default.
 
+## Styling / themes
+
+Call `set_theme` once before plotting to switch the whole look. The default
+is the checklist style above; `style_preset="infographic"` gives a bold,
+vivid dashboard aesthetic — saturated palette, large bold on-data labels,
+gradient area fills, event callouts, swatch legends, and borderless
+white-background chrome:
+
+```python
+from vizlib import plots
+
+plots.set_theme(style_preset="infographic")
+
+plots.bar(df, "department", highlight="ER")   # bold "on-bar" labels, action color
+plots.line(df, "date", "admissions", area=True,
+           annotations=[("2024-01-15", "policy change")])  # gradient fill + callout
+
+plots.set_theme(style_preset="default")        # back to the analytical look
+```
+
+**Caveats — this is a presentation look, not an analytical one.** The vivid
+palette is **not fully colorblind-safe** (it uses red/green and red/orange
+adjacencies), so for analysis keep the default `colorblind` palette. The
+optional [`donut`](#plotting--vizlibplots) chart is an infographic extra that
+trades proportion-accuracy for looks — a `bar` is easier to read
+accurately. Everything is opt-in: with no `set_theme(...)` call every plot
+looks exactly as it does by default.
+
 ## Try it / Demo
 
 Every snippet below runs as-is from the repo root against the committed
@@ -269,13 +297,14 @@ pandas, so `import vizlib` stays fast.
 | `hist(series, *, bins="auto", kde=False, ...)` | Histogram of a numeric Series, optional KDE; zero-based count axis. |
 | `distribution(series, *, ...)` | Histogram + KDE + rug for a quick distribution read. |
 | `box(df, column=None, *, by=None, ...)` | Boxplot for spread/outliers; groups ordered by median. |
-| `scatter(df, x, y, *, hue=None, reg=False, sample=None, random_state=0, ...)` | Relationship between two numeric (or coercible) columns; frameless legend for `hue`; auto-samples large data. |
-| `line(df, x, y, *, hue=None, ...)` | Line plot for ordered/time-series data; datetime axes and lines labelled directly. |
+| `scatter(df, x, y, *, hue=None, reg=False, sample=None, random_state=0, annotations=None, ...)` | Relationship between two numeric (or coercible) columns; frameless legend for `hue`; leader-line callouts; auto-samples large data. |
+| `line(df, x, y, *, hue=None, area=False, stack=False, annotations=None, ...)` | Line plot for ordered/time-series data; datetime axes, gradient/stacked area fills, leader-line callouts. |
 | `correlation_heatmap(df, *, method="pearson", annot=True, ...)` | Masked, annotated correlation matrix on a fixed `[-1, 1]` diverging scale. |
 | `missing_bar(df, *, highlight=None, value_labels=True, precision=1, ...)` | Per-column percentage of missing values, largest first, labelled directly. |
 | `missing_matrix(df, *, ...)` | Nullity matrix (dark cells mark missing values). |
 | `pairplot(df, *, hue=None, columns=None, sample=None, random_state=0, ...)` | Scatter-matrix of numeric columns; returns the seaborn grid; auto-samples large data. |
-| `set_theme(*, palette=..., accent=..., muted=..., text_color=..., grid_color=..., title_size=..., ...)` | Configure the shared, colorblind-safe look and font hierarchy. |
+| `donut(data, column=None, *, top=8, center_text=None, explode=None, ...)` | Ring chart of category shares (infographic extra; trades proportion-accuracy for looks). |
+| `set_theme(*, style_preset="default"/"infographic", palette=..., accent=..., background=..., linewidth=..., ...)` | Switch the whole look (checklist default vs. vivid infographic) and tune individual knobs. |
 
 Every plotting function (except `set_theme`) accepts the keyword-only
 checklist hooks `title=`, `subtitle=`, `source=` and, where it composes,
