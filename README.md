@@ -4,11 +4,12 @@ MSDS-610-01 Visualization Library
 
 `vizlib` is a tiny exploratory-data-analysis (EDA) toolkit for pandas
 DataFrames. It gives you a quick, readable feel for a dataset — column
-overviews, missing-value reports, and no-dependency ASCII charts — in a
-handful of plain Python functions. The core has a single dependency:
-**pandas**. Publication-quality matplotlib/seaborn plots are available as
-an [optional extra](#plotting-optional), so `import vizlib` stays fast and
-pandas-only unless you ask for them.
+overviews, missing-value reports, and lightweight ASCII charts — in a
+handful of plain Python functions. A standard install brings in **pandas,
+matplotlib and seaborn**, so the publication-quality [plotting
+functions](#plotting) work out of the box. `import vizlib` itself stays
+fast: matplotlib is only loaded when you explicitly reach for
+`vizlib.plots`.
 
 ## Install
 
@@ -23,6 +24,9 @@ Or a regular install:
 ```bash
 pip install .
 ```
+
+Both commands install the full plotting stack (pandas, matplotlib and
+seaborn) — no extra step is needed to use `vizlib.plots`.
 
 ## Quick start
 
@@ -53,18 +57,13 @@ print(vizlib.value_counts_bar(df["city"]))
 print(vizlib.histogram(df["age"], bins=4))
 ```
 
-## Plotting (optional)
+## Plotting
 
-The core above needs only pandas. For real matplotlib/seaborn figures,
-install the `plot` extra:
-
-```bash
-pip install "vizlib[plot]"
-```
-
-The plotting functions live in their own module, `vizlib.plots`, and are
-**not** re-exported from the top level — that keeps `import vizlib`
-pandas-only. Reach them explicitly:
+The plotting functions are backed by matplotlib and seaborn, both installed
+by the standard `pip install` above. They live in their own module,
+`vizlib.plots`, and are **not** re-exported from the top level — that keeps
+`import vizlib` fast, since matplotlib (a slow import) loads only when you
+reach for the plotting module. Import it explicitly:
 
 ```python
 import pandas as pd
@@ -92,12 +91,12 @@ so plots compose in notebooks and subplot grids — pass `ax=` to draw into
 an existing axis. Call `plots.set_theme(...)` once to customize the shared
 look; the defaults are already colorblind-safe and de-cluttered.
 
-Importing `vizlib.plots` without the extra installed raises a
-`ModuleNotFoundError`/`ImportError` — install `vizlib[plot]` to resolve it.
+> The legacy `pip install "vizlib[plot]"` extra still works but is no longer
+> necessary — plotting is installed by default.
 
 ## API
 
-### Core (pandas only)
+### Core
 
 | Function | What it does |
 | --- | --- |
@@ -109,7 +108,7 @@ Importing `vizlib.plots` without the extra installed raises a
 
 All core functions take a pandas object and never mutate their input.
 
-### Plotting — `vizlib.plots` (needs `vizlib[plot]`)
+### Plotting — `vizlib.plots`
 
 | Function | What it does |
 | --- | --- |
