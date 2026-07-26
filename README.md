@@ -5,7 +5,10 @@ MSDS-610-01 Visualization Library
 `vizlib` is a tiny exploratory-data-analysis (EDA) toolkit for pandas
 DataFrames. It gives you a quick, readable feel for a dataset — column
 overviews, missing-value reports, and no-dependency ASCII charts — in a
-handful of plain Python functions. One dependency: **pandas**.
+handful of plain Python functions. The core has a single dependency:
+**pandas**. Publication-quality matplotlib/seaborn plots are available as
+an [optional extra](#plotting-optional), so `import vizlib` stays fast and
+pandas-only unless you ask for them.
 
 ## Install
 
@@ -50,7 +53,51 @@ print(vizlib.value_counts_bar(df["city"]))
 print(vizlib.histogram(df["age"], bins=4))
 ```
 
+## Plotting (optional)
+
+The core above needs only pandas. For real matplotlib/seaborn figures,
+install the `plot` extra:
+
+```bash
+pip install "vizlib[plot]"
+```
+
+The plotting functions live in their own module, `vizlib.plots`, and are
+**not** re-exported from the top level — that keeps `import vizlib`
+pandas-only. Reach them explicitly:
+
+```python
+import pandas as pd
+import matplotlib.pyplot as plt
+from vizlib import plots
+
+df = pd.read_csv("data.csv")
+
+# Value-counts bar chart (graphical twin of value_counts_bar):
+# top-N categories, the rest folded into "Other", sorted, zero baseline.
+plots.bar(df, "city")
+
+# Distribution of a numeric column, with a KDE overlay.
+plots.hist(df["age"], kde=True)
+
+# Correlation heatmap: masked upper triangle, annotated, scale fixed to [-1, 1].
+plots.correlation_heatmap(df)
+
+plt.show()  # you call show(); vizlib only ever returns the Axes/Figure
+```
+
+Every plot function **returns** the matplotlib `Axes` it drew on (or a
+`Figure`/seaborn grid for multi-panel plots) and never calls `plt.show()`,
+so plots compose in notebooks and subplot grids — pass `ax=` to draw into
+an existing axis. Call `plots.set_theme(...)` once to customize the shared
+look; the defaults are already colorblind-safe and de-cluttered.
+
+Importing `vizlib.plots` without the extra installed raises a
+`ModuleNotFoundError`/`ImportError` — install `vizlib[plot]` to resolve it.
+
 ## API
+
+### Core (pandas only)
 
 | Function | What it does |
 | --- | --- |
@@ -60,7 +107,26 @@ print(vizlib.histogram(df["age"], bins=4))
 | `value_counts_bar(series, top=10, width=40)` | ASCII horizontal bar chart of value counts. |
 | `histogram(series, bins=10, width=40)` | ASCII histogram of a numeric Series. |
 
-All functions take a pandas object and never mutate their input.
+All core functions take a pandas object and never mutate their input.
+
+### Plotting — `vizlib.plots` (needs `vizlib[plot]`)
+
+| Function | What it does |
+| --- | --- |
+| `bar(data, column=None, *, top=15, sort=True, ax=None)` | Value-counts bar chart with top-N + "Other", sorted, zero baseline. |
+| `hist(series, *, bins="auto", kde=False, ax=None)` | Histogram of a numeric Series, optional KDE. |
+| `distribution(series, *, ax=None)` | Histogram + KDE + rug for a quick distribution read. |
+| `box(df, column=None, *, by=None, ax=None)` | Boxplot for spread/outliers, optionally grouped by a category. |
+| `scatter(df, x, y, *, hue=None, reg=False, ax=None)` | Relationship between two numeric columns, optional regression line. |
+| `line(df, x, y, *, hue=None, ax=None)` | Line plot for ordered/time-series data. |
+| `correlation_heatmap(df, *, method="pearson", annot=True, ax=None)` | Masked, annotated correlation matrix on a fixed `[-1, 1]` diverging scale. |
+| `missing_bar(df, *, ax=None)` | Per-column percentage of missing values, largest first. |
+| `missing_matrix(df, *, ax=None)` | Nullity matrix (dark cells mark missing values). |
+| `pairplot(df, *, hue=None, columns=None)` | Scatter-matrix of numeric columns; returns the seaborn grid. |
+| `set_theme(*, palette="colorblind", context="notebook", ...)` | Configure the shared, colorblind-safe look. |
+
+Every plotting function takes a pandas object, never mutates it, and
+returns the `Axes`/`Figure` it drew on.
 
 ## License
 

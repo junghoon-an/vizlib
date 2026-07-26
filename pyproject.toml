@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vizlib"
-version = "0.1.0"
+version = "0.2.0"
 description = "Tiny exploratory-data-analysis helpers for pandas DataFrames."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -20,6 +20,9 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Visualization",
 ]
+
+[project.optional-dependencies]
+plot = ["matplotlib>=3.5", "seaborn>=0.12"]
 
 [project.urls]
 Homepage = "https://github.com/junghoon-an/vizlib"
