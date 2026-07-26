@@ -88,15 +88,12 @@ time, so `hist`/`scatter`/`line` on a `"$1,234"` column just work.
 
 Five small, **synthetic** healthcare datasets live in
 [`datasets/`](datasets/) (ER visits, oncology intake, biometrics, hospital
-claims, wearable monitoring) with a data dictionary in
-[`datasets/README.md`](datasets/README.md). They cover the full `vizlib`
-surface and contain the messy features (`$`/comma numbers, several NA tokens,
-date strings, ordered + high-cardinality categoricals, skew, outliers, gaps)
-that `load` and the plots handle. Render one figure per function with:
-
-```bash
-python examples/demo.py    # writes PNGs to examples/output/
-```
+claims, wearable monitoring). They cover the full `vizlib` surface and
+contain the messy features (`$`/comma numbers, several NA tokens, date
+strings, ordered + high-cardinality categoricals, skew, outliers, gaps) that
+`load` and the plots handle. See [`datasets/README.md`](datasets/README.md)
+for the per-file data dictionary and the suggested "so what?" each chart
+tells, and the [Try it](#try-it--demo) section below for runnable snippets.
 
 ## Plotting
 
@@ -152,6 +149,100 @@ default titles are placeholders and vizlib never invents a takeaway.
 
 > The legacy `pip install "vizlib[plot]"` extra still works but is no longer
 > necessary — plotting is installed by default.
+
+## Try it / Demo
+
+Every snippet below runs as-is from the repo root against the committed
+[`datasets/`](datasets/) files. Plotting needs the matplotlib/seaborn
+dependencies — see the [Plotting](#plotting) section for install details.
+
+### 1. Explore a bundled healthcare dataset
+
+The `load → inspect → plot` flow, using both the pandas-only core and the
+plotting layer:
+
+```python
+import matplotlib.pyplot as plt
+import vizlib
+from vizlib import plots
+
+# Load a bundled, synthetic dataset — the messy CSV is cleaned on load
+# ("$18,240.50" -> numeric, "N/A"/blank/"null" -> NaN, date strings parsed).
+df = vizlib.load("datasets/er_daily_visits.csv")
+
+# Pandas-only text EDA — a fast feel for the data:
+print(vizlib.summarize(df))        # dtype, non-null, nulls, null %, unique
+print(vizlib.missing_values(df))   # columns with gaps, worst first
+
+# Graphical EDA — each function returns an Axes; you call plt.show():
+plots.bar(df, "department", title="ER volume concentrates in a few departments")
+plots.line(df, "date", "admissions", title="Daily ER admissions")
+plots.correlation_heatmap(df)
+plt.show()
+```
+
+### 2. A quick tour across the datasets
+
+Each dataset is chosen to show off different functions. See
+[`datasets/README.md`](datasets/README.md) for what each chart is telling
+you.
+
+```python
+import matplotlib.pyplot as plt
+import vizlib
+from vizlib import plots
+
+# Distributions & relationships — patient vitals
+df = vizlib.load("datasets/patient_vitals.csv")
+plots.distribution(df["glucose"])
+plots.scatter(df, "bmi", "glucose", hue="risk_group", reg=True)
+plots.pairplot(df, hue="risk_group")
+
+# Missing-data patterns & ordered groups — patient intake
+df = vizlib.load("datasets/patient_intake.csv")
+plots.missing_bar(df)
+plots.missing_matrix(df)
+plots.box(df, "treatment_cost_usd", by="stage")   # boxes run stage I -> IV
+
+# Skewed billing data — hospital claims
+df = vizlib.load("datasets/hospital_claims.csv")
+plots.hist(df["total_charges_usd"])               # right-skewed
+plots.line(df, "admission_year", "total_charges_usd")
+
+# Grouped time series with outliers — patient monitoring
+df = vizlib.load("datasets/patient_monitoring.csv")
+plots.line(df, "timestamp", "heart_rate_bpm", hue="patient_id")
+plots.box(df, "heart_rate_bpm", by="patient_id")
+
+plt.show()
+```
+
+### 3. Use it with your own CSV
+
+The same flow works for any dataset, with no schema assumptions — inspect
+first to discover the columns, then plot:
+
+```python
+import matplotlib.pyplot as plt
+import vizlib
+from vizlib import plots
+
+df = vizlib.load("path/to/your_data.csv")   # NA tokens, $/commas/%, dates handled
+print(vizlib.summarize(df))                 # discover columns, dtypes, and gaps
+
+plots.bar(df, "some_categorical_column")    # top categories, rest folded into "Other"
+plots.hist(df["some_numeric_column"])       # works even if stored as "1,234" / "$1,234"
+plt.show()
+```
+
+Because plots **return** the `Axes`/`Figure` and never call `plt.show()`
+themselves, you choose how to display them: call `plt.show()` in a
+script/REPL, let the figure render inline in a notebook, or save it —
+
+```python
+ax = plots.hist(df["some_numeric_column"])
+ax.figure.savefig("chart.png", dpi=150, bbox_inches="tight")
+```
 
 ## API
 
