@@ -29,6 +29,7 @@ from __future__ import annotations
 import pandas as pd
 
 try:  # matplotlib + seaborn ship as regular dependencies
+    import matplotlib.dates as mdates
     import matplotlib.pyplot as plt
     import seaborn as sns
     from matplotlib.axes import Axes
@@ -39,7 +40,18 @@ except ImportError as exc:  # pragma: no cover - exercised only without the deps
         'Install them with: pip install "vizlib[plot]"'
     ) from exc
 
-from .core import _require_dataframe, _require_series
+from .core import (
+    _coerce_numeric,
+    _looks_datetime,
+    _numeric_frame,
+    _require_dataframe,
+    _require_series,
+)
+
+# Row counts above which scatter/pairplot auto-sample (deterministically) to
+# stay responsive. Override or disable with an explicit ``sample=``.
+_AUTO_SAMPLE_SCATTER = 20_000
+_AUTO_SAMPLE_PAIRPLOT = 2_000
 
 __all__ = [
     "set_theme",
@@ -268,7 +280,7 @@ def box(
     rotate = False
 
     if column is None:
-        numeric = df.select_dtypes(include="number")
+        numeric = _numeric_frame(df)
         if numeric.empty:
             raise ValueError("no numeric columns to plot")
         sns.boxplot(data=numeric, ax=ax, **kwargs)
@@ -305,6 +317,8 @@ def scatter(
     *,
     hue: str | None = None,
     reg: bool = False,
+    sample: int | None = None,
+    random_state: int = 0,
     title: str | None = None,
     subtitle: str | None = None,
     source: str | None = None,
@@ -313,18 +327,24 @@ def scatter(
 ) -> "Axes":
     """Plot the relationship between two numeric columns.
 
-    Optionally colour points by ``hue`` and overlay a single accent-colored
-    regression line with ``reg=True``. Rows missing any plotted value are
-    dropped (never in place). When ``hue`` is given a clean, frameless legend
-    is drawn (direct labelling isn't practical for a point cloud). Returns
-    the ``Axes``.
+    ``x`` and ``y`` are coerced to numeric (currency/thousands/``%`` stripped),
+    so numeric-looking string columns just work. Optionally colour points by
+    ``hue`` and overlay a single accent-colored regression line with
+    ``reg=True``. Rows missing any plotted value are dropped (never in place).
+    Large frames auto-sample for responsiveness; pass ``sample=`` for an
+    explicit reproducible subset (``random_state``). When ``hue`` is given a
+    clean, frameless legend is drawn. Returns the ``Axes``.
     """
     _require_dataframe(df)
     cols = [x, y] + ([hue] if hue else [])
     _require_columns(df, cols)
-    sub = df[cols].dropna()
+    sub = df[cols].dropna().copy()
+    sub[x] = _coerce_numeric(sub[x])
+    sub[y] = _coerce_numeric(sub[y])
+    sub = sub.dropna(subset=[x, y])
     if sub.empty:
-        raise ValueError("no rows left after dropping missing values")
+        raise ValueError("no numeric values to plot")
+    sub = _maybe_sample(sub, sample, _AUTO_SAMPLE_SCATTER, random_state)
 
     ax = _new_ax(ax)
     palette = _THEME["palette"] if hue else None
@@ -357,15 +377,22 @@ def line(
 ) -> "Axes":
     """Draw a line plot for ordered or time-series data.
 
-    Rows are sorted by ``x`` and rows missing a plotted value are dropped
-    (without mutating the caller's frame). With ``hue`` each line is labelled
-    directly at its right end and the legend is suppressed. Tick marks are
-    kept, since they demarcate points along the axis. Returns the ``Axes``.
+    The value axis ``y`` is coerced to numeric. A date-like ``x`` is parsed to
+    datetimes and given readable, concise date ticks; otherwise ``x`` is left
+    as-is. Rows are sorted by ``x`` and rows missing a plotted value are
+    dropped (without mutating the caller's frame). With ``hue`` each line is
+    labelled directly at its right end and the legend is suppressed. Tick
+    marks are kept, since they demarcate points along the axis. Returns the
+    ``Axes``.
     """
     _require_dataframe(df)
     cols = [x, y] + ([hue] if hue else [])
     _require_columns(df, cols)
-    sub = df[cols].dropna().sort_values(x)
+    sub = df[cols].dropna().copy()
+    sub[y] = _coerce_numeric(sub[y])
+    if sub[x].dtype == object and _looks_datetime(x, sub[x]):
+        sub[x] = pd.to_datetime(sub[x], errors="coerce")
+    sub = sub.dropna(subset=[x, y]).sort_values(x)
     if sub.empty:
         raise ValueError("no rows left after dropping missing values")
 
@@ -374,6 +401,10 @@ def line(
     color = None if hue else _base_color()
     sns.lineplot(data=sub, x=x, y=y, hue=hue, palette=palette, color=color,
                  ax=ax, **kwargs)
+    if pd.api.types.is_datetime64_any_dtype(sub[x]):  # readable date ticks
+        locator = mdates.AutoDateLocator()
+        ax.xaxis.set_major_locator(locator)
+        ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(locator))
     if hue:
         handles, labels = ax.get_legend_handles_labels()
         color_by = {lab: h.get_color() for h, lab in zip(handles, labels)}
@@ -413,7 +444,7 @@ def correlation_heatmap(
     numeric columns. Returns the ``Axes``; the input is not mutated.
     """
     _require_dataframe(df)
-    numeric = df.select_dtypes(include="number")
+    numeric = _numeric_frame(df)
     if numeric.shape[1] < 2:
         raise ValueError("need at least two numeric columns for a correlation heatmap")
 
@@ -529,6 +560,8 @@ def pairplot(
     *,
     hue: str | None = None,
     columns: list[str] | None = None,
+    sample: int | None = None,
+    random_state: int = 0,
     title: str | None = None,
     subtitle: str | None = None,
     source: str | None = None,
@@ -538,22 +571,24 @@ def pairplot(
 
     This is a multi-panel figure, so it returns the seaborn ``PairGrid``
     (use ``grid.figure`` for the ``Figure``) rather than a single ``Axes``.
-    Restrict the columns with ``columns`` and colour by ``hue``. The input is
-    not mutated.
+    Restrict the columns with ``columns`` and colour by ``hue``. Large frames
+    auto-sample for responsiveness; pass ``sample=`` for an explicit
+    reproducible subset (``random_state``). The input is not mutated.
     """
     _require_dataframe(df)
     if columns is not None:
         _require_columns(df, columns)
         variables = columns
     else:
-        variables = list(df.select_dtypes(include="number").columns)
+        variables = list(_numeric_frame(df).columns)
     if len(variables) < 2:
         raise ValueError("need at least two numeric columns for a pairplot")
 
+    plot_df = _maybe_sample(df, sample, _AUTO_SAMPLE_PAIRPLOT, random_state)
     kwargs.setdefault("corner", True)
     kwargs.setdefault("diag_kind", "kde")
     palette = _THEME["palette"] if hue else None
-    grid = sns.pairplot(df, vars=variables, hue=hue, palette=palette, **kwargs)
+    grid = sns.pairplot(plot_df, vars=variables, hue=hue, palette=palette, **kwargs)
     fig = grid.figure
     sizes, tc = _THEME["font_sizes"], _THEME["text_color"]
     if title is None:
@@ -679,12 +714,27 @@ def _require_columns(df: pd.DataFrame, columns) -> None:
 
 
 def _numeric_values(series: pd.Series) -> pd.Series:
-    """Coerce a Series to numeric and drop NaN, mirroring ``core.histogram``."""
+    """Coerce a Series to numeric and drop NaN.
+
+    Strips currency symbols, thousands separators and stray ``%`` first (via
+    the shared ``core._coerce_numeric``), so a numeric-looking string column
+    plots without manual cleaning. Raises when nothing parses.
+    """
     _require_series(series)
-    values = pd.to_numeric(series, errors="coerce").dropna()
+    values = _coerce_numeric(series).dropna()
     if values.empty:
         raise ValueError("no numeric values to plot")
     return values
+
+
+def _maybe_sample(frame: pd.DataFrame, sample, auto_threshold: int, random_state: int):
+    """Return a reproducible row subset, honouring an explicit or auto cap."""
+    n = sample if sample is not None else (
+        auto_threshold if len(frame) > auto_threshold else None
+    )
+    if n is not None and n < len(frame):
+        return frame.sample(n=n, random_state=random_state)
+    return frame
 
 
 def _upper_triangle_mask(corr: pd.DataFrame) -> pd.DataFrame:

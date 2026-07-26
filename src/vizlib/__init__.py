@@ -12,15 +12,17 @@ Import the public functions straight from the package::
 
 from .core import (
     histogram,
+    load,
     missing_values,
     numeric_summary,
     summarize,
     value_counts_bar,
 )
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 __all__ = [
+    "load",
     "summarize",
     "missing_values",
     "numeric_summary",
