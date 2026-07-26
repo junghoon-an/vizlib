@@ -29,11 +29,14 @@ from __future__ import annotations
 import pandas as pd
 
 try:  # matplotlib + seaborn ship as regular dependencies
+    import numpy as np
     import matplotlib.dates as mdates
     import matplotlib.pyplot as plt
     import seaborn as sns
     from matplotlib.axes import Axes
+    from matplotlib.colors import to_rgb
     from matplotlib.figure import Figure
+    from matplotlib.patches import Patch, Polygon
 except ImportError as exc:  # pragma: no cover - exercised only without the deps
     raise ImportError(
         "vizlib.plots requires matplotlib and seaborn. "
@@ -53,6 +56,16 @@ from .core import (
 _AUTO_SAMPLE_SCATTER = 20_000
 _AUTO_SAMPLE_PAIRPLOT = 2_000
 
+# Vivid qualitative palette for the "infographic" preset (Section A). It is
+# NOT fully colorblind-safe (red/green, red/orange adjacencies) — that is the
+# documented tradeoff of the look; ``colorblind`` stays the default.
+_VIVID_PALETTE = [
+    "#EE3524", "#27AAE1", "#FDB913", "#F58220", "#22B573",
+    "#92278F", "#17A398", "#1B3A5B", "#EC008C",
+]
+# Sequential traffic-light scale for ordered low -> medium -> high data.
+_TRAFFIC_LIGHT = ["#27AAE1", "#FDB913", "#EE3524"]
+
 __all__ = [
     "set_theme",
     "bar",
@@ -65,11 +78,13 @@ __all__ = [
     "missing_bar",
     "missing_matrix",
     "pairplot",
+    "donut",
 ]
 
 # Shared, mutable defaults. Updated by set_theme(); read by every plot so a
 # checklist-compliant figure needs no configuration and stays consistent.
 _DEFAULTS: dict = {
+    "style_preset": "default",
     "palette": "colorblind",   # colorblind- and luminance-separated
     "context": "notebook",
     "style": "whitegrid",
@@ -79,7 +94,31 @@ _DEFAULTS: dict = {
     "muted": "#b6b6b6",        # de-emphasis gray
     "text_color": "#1a1a1a",   # near-black, high contrast on white
     "grid_color": "#dcdcdc",   # faint gray gridlines
+    "background": None,        # None -> matplotlib default (transparent)
+    "linewidth": None,         # None -> matplotlib default line width
+    "hide_all_spines": False,  # default hides only top/right
+    "show_grid": True,
+    "bold_labels": False,      # bold, on-data value labels
+    "swatch_legend": False,    # colored-swatch legends
     "font_sizes": {"title": 15, "subtitle": 12, "label": 11, "tick": 10, "source": 8},
+}
+
+# Preset overlays applied on top of _DEFAULTS by set_theme(style_preset=...).
+_PRESETS: dict = {
+    "default": {},
+    "infographic": {
+        "palette": list(_VIVID_PALETTE),
+        "accent": "#EE3524",
+        "text_color": "#1A1A1A",
+        "grid_color": "#ECECEC",
+        "background": "#FFFFFF",
+        "linewidth": 2.6,
+        "hide_all_spines": True,
+        "show_grid": False,
+        "bold_labels": True,
+        "swatch_legend": True,
+        "font_sizes": {"title": 18, "subtitle": 13, "label": 13, "tick": 11, "source": 9},
+    },
 }
 
 _THEME: dict = {**_DEFAULTS, "font_sizes": dict(_DEFAULTS["font_sizes"])}
@@ -87,7 +126,8 @@ _THEME: dict = {**_DEFAULTS, "font_sizes": dict(_DEFAULTS["font_sizes"])}
 
 def set_theme(
     *,
-    palette: str | None = None,
+    style_preset: str | None = None,
+    palette=None,
     context: str | None = None,
     style: str | None = None,
     figsize: tuple[float, float] | None = None,
@@ -96,6 +136,8 @@ def set_theme(
     muted: str | None = None,
     text_color: str | None = None,
     grid_color: str | None = None,
+    background: str | None = None,
+    linewidth: float | None = None,
     title_size: float | None = None,
     subtitle_size: float | None = None,
     label_size: float | None = None,
@@ -104,17 +146,41 @@ def set_theme(
 ) -> None:
     """Configure the look shared by every plot in this module.
 
-    All parameters are optional and default to the current look, so pass
-    only what you want to change. ``accent`` is the action color used by
-    ``highlight=``; ``muted`` de-emphasizes everything else. The default
-    ``colorblind`` palette and the diverging ``vlag`` correlation map are
-    chosen to separate by luminance too, so patterns survive black-and-white
-    printing. Returns ``None``; plots already look good without calling this.
+    Pass ``style_preset`` to switch the whole look at once:
+
+    - ``"default"`` (the out-of-the-box look): the colorblind- and
+      grayscale-legible, low-chartjunk checklist style.
+    - ``"infographic"``: a bold, vivid dashboard look — saturated palette,
+      large bold on-data labels, borderless white-background chrome, thicker
+      lines, gradient area fills and swatch legends. **This palette is not
+      fully colorblind-safe** (it uses red/green and red/orange adjacencies);
+      prefer the default for analytical work and keep this for presentation.
+
+    Setting a preset resets the theme to that preset's look; any other
+    argument you pass is then applied on top, so every knob stays
+    overridable. Called with no ``style_preset`` it just updates the
+    individual values you provide. Returns ``None``.
     """
+    if style_preset is not None:
+        if style_preset not in _PRESETS:
+            raise ValueError(
+                f"unknown style_preset {style_preset!r}; "
+                f"choose from {sorted(_PRESETS)}"
+            )
+        base = {**_DEFAULTS, "font_sizes": dict(_DEFAULTS["font_sizes"])}
+        overlay = _PRESETS[style_preset]
+        base.update({k: v for k, v in overlay.items() if k != "font_sizes"})
+        if "font_sizes" in overlay:
+            base["font_sizes"] = dict(overlay["font_sizes"])
+        base["style_preset"] = style_preset
+        _THEME.clear()
+        _THEME.update(base)
+
     scalar = {
         "palette": palette, "context": context, "style": style,
         "figsize": figsize, "dpi": dpi, "accent": accent, "muted": muted,
         "text_color": text_color, "grid_color": grid_color,
+        "background": background, "linewidth": linewidth,
     }
     for key, value in scalar.items():
         if value is not None:
@@ -140,6 +206,8 @@ def bar(
     highlight=None,
     value_labels: bool = True,
     precision: int = 0,
+    as_percent: bool = False,
+    fmt: str | None = None,
     title: str | None = None,
     subtitle: str | None = None,
     source: str | None = None,
@@ -154,9 +222,12 @@ def bar(
     default each bar is labelled directly (``value_labels=True``) and the
     now-redundant value axis and tick marks are hidden. ``highlight`` (a
     label or list of labels) paints the chosen bars in the accent color and
-    the rest muted. ``precision`` sets the label decimals. Returns the
-    ``Axes``; the input is never mutated. The default ``title`` is a neutral
-    placeholder — override it with your finding.
+    the rest muted. Set ``as_percent=True`` to plot each category's share of
+    the total; ``precision`` sets the decimals and ``fmt`` overrides the label
+    format string. Under the ``infographic`` preset the labels are large, bold
+    and placed on the bars. Returns the ``Axes``; the input is never mutated.
+    The default ``title`` is a neutral placeholder — override it with your
+    finding.
     """
     series = _resolve_column(data, column)
     ordered = isinstance(series.dtype, pd.CategoricalDtype) and series.dtype.ordered
@@ -173,20 +244,24 @@ def bar(
         if sort:
             counts = counts.sort_values(ascending=False)
 
+    if as_percent:
+        total = counts.sum()
+        counts = counts / total * 100 if total else counts * 0.0
+
     ax = _new_ax(ax)
     plot = counts.iloc[::-1]  # biggest on top for a horizontal bar
     kwargs.setdefault("color", _bar_colors(plot.index, highlight))
+    if _THEME.get("linewidth"):
+        kwargs.setdefault("edgecolor", "white")
     container = ax.barh([str(i) for i in plot.index], plot.to_numpy(), **kwargs)
     biggest = float(plot.max())
     ax.set_xlim(0, biggest * 1.18 if biggest else 1)  # zero-based, room for labels
 
     name = series.name if series.name is not None else "value"
-    grid_axis, xlabel = "x", "count"
+    grid_axis, xlabel = "x", ("% of total" if as_percent else "count")
     if value_labels:
-        ax.bar_label(
-            container, fmt=f"%.{precision}f", padding=3,
-            fontsize=_THEME["font_sizes"]["label"], color=_THEME["text_color"],
-        )
+        default_fmt = f"%.{precision}f%%" if as_percent else f"%.{precision}f"
+        _draw_value_labels(ax, container, fmt=fmt or default_fmt)
         ax.xaxis.set_visible(False)                 # value axis is redundant now
         ax.spines["bottom"].set_visible(False)
         grid_axis, xlabel = None, None
@@ -319,6 +394,7 @@ def scatter(
     reg: bool = False,
     sample: int | None = None,
     random_state: int = 0,
+    annotations=None,
     title: str | None = None,
     subtitle: str | None = None,
     source: str | None = None,
@@ -332,8 +408,10 @@ def scatter(
     ``hue`` and overlay a single accent-colored regression line with
     ``reg=True``. Rows missing any plotted value are dropped (never in place).
     Large frames auto-sample for responsiveness; pass ``sample=`` for an
-    explicit reproducible subset (``random_state``). When ``hue`` is given a
-    clean, frameless legend is drawn. Returns the ``Axes``.
+    explicit reproducible subset (``random_state``). ``annotations`` attaches
+    leader-line callouts — a list of ``(x, y, text)`` points. When ``hue`` is
+    given a clean legend is drawn (a swatch legend under the infographic
+    preset). Returns the ``Axes``.
     """
     _require_dataframe(df)
     cols = [x, y] + ([hue] if hue else [])
@@ -347,16 +425,23 @@ def scatter(
     sub = _maybe_sample(sub, sample, _AUTO_SAMPLE_SCATTER, random_state)
 
     ax = _new_ax(ax)
-    palette = _THEME["palette"] if hue else None
+    palette = _hue_palette(sub[hue]) if hue else None
     if not hue:
         kwargs.setdefault("color", _base_color())
     sns.scatterplot(data=sub, x=x, y=y, hue=hue, palette=palette, ax=ax, **kwargs)
     if reg:
         sns.regplot(data=sub, x=x, y=y, ax=ax, scatter=False, color=_THEME["accent"])
     if hue:
-        ax.legend(frameon=False, title=str(hue),
-                  fontsize=_THEME["font_sizes"]["tick"],
-                  title_fontsize=_THEME["font_sizes"]["label"])
+        handles, labels = ax.get_legend_handles_labels()
+        if _THEME.get("swatch_legend"):
+            colors = [h.get_markerfacecolor() if hasattr(h, "get_markerfacecolor")
+                      else h.get_color() for h in handles]
+            _swatch_legend(ax, labels, colors, title=str(hue))
+        else:
+            ax.legend(frameon=False, title=str(hue),
+                      fontsize=_THEME["font_sizes"]["tick"],
+                      title_fontsize=_THEME["font_sizes"]["label"])
+    _draw_callouts(ax, annotations, sub[x].tolist(), sub[y].tolist())
     if title is None:
         title = f"Relationship between {x} and {y}"
     return _finish(ax, title=title, subtitle=subtitle, source=source,
@@ -369,6 +454,9 @@ def line(
     y: str,
     *,
     hue: str | None = None,
+    area: bool = False,
+    stack: bool = False,
+    annotations=None,
     title: str | None = None,
     subtitle: str | None = None,
     source: str | None = None,
@@ -380,10 +468,17 @@ def line(
     The value axis ``y`` is coerced to numeric. A date-like ``x`` is parsed to
     datetimes and given readable, concise date ticks; otherwise ``x`` is left
     as-is. Rows are sorted by ``x`` and rows missing a plotted value are
-    dropped (without mutating the caller's frame). With ``hue`` each line is
-    labelled directly at its right end and the legend is suppressed. Tick
-    marks are kept, since they demarcate points along the axis. Returns the
-    ``Axes``.
+    dropped (without mutating the caller's frame).
+
+    - ``area=True`` fills under the line(s) with a vertical gradient.
+    - ``area=True, stack=True`` with ``hue`` draws a **stacked** area; bands
+      use the traffic-light scale when the hue is a low/medium/high category,
+      otherwise the palette, and a swatch legend is drawn.
+    - ``annotations`` attaches leader-line callouts — a list of ``(x, text)``
+      (``y`` read from the nearest point) or ``(x, y, text)``.
+
+    With ``hue`` (and no swatch legend) each line is labelled directly at its
+    right end. Returns the ``Axes``.
     """
     _require_dataframe(df)
     cols = [x, y] + ([hue] if hue else [])
@@ -397,26 +492,57 @@ def line(
         raise ValueError("no rows left after dropping missing values")
 
     ax = _new_ax(ax)
-    palette = _THEME["palette"] if hue else None
-    color = None if hue else _base_color()
-    sns.lineplot(data=sub, x=x, y=y, hue=hue, palette=palette, color=color,
-                 ax=ax, **kwargs)
-    if pd.api.types.is_datetime64_any_dtype(sub[x]):  # readable date ticks
-        locator = mdates.AutoDateLocator()
-        ax.xaxis.set_major_locator(locator)
-        ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(locator))
-    if hue:
+    if _THEME.get("linewidth"):
+        kwargs.setdefault("linewidth", _THEME["linewidth"])
+
+    if area and stack and hue:
+        wide = (sub.pivot_table(index=x, columns=hue, values=y, aggfunc="sum")
+                .fillna(0).sort_index())
+        cats = list(wide.columns)
+        rank = {"low": 0, "l": 0, "medium": 1, "med": 1, "m": 1, "high": 2, "h": 2}
+        if all(str(c).strip().lower() in rank for c in cats):
+            cats = sorted(cats, key=lambda c: rank[str(c).strip().lower()])
+        colors = _stack_colors(cats)
+        bottom = np.zeros(len(wide))
+        for cat, col in zip(cats, colors):
+            top = bottom + wide[cat].to_numpy(dtype=float)
+            ax.fill_between(wide.index, bottom, top, color=col, alpha=0.85,
+                            linewidth=0, label=str(cat))
+            bottom = top
+        _swatch_legend(ax, [str(c) for c in cats], colors, title=str(hue))
+    elif hue:
+        sns.lineplot(data=sub, x=x, y=y, hue=hue, palette=_hue_palette(sub[hue]),
+                     ax=ax, **kwargs)
         handles, labels = ax.get_legend_handles_labels()
         color_by = {lab: h.get_color() for h, lab in zip(handles, labels)}
         legend = ax.get_legend()
         if legend is not None:
             legend.remove()
-        for label, group in sub.groupby(hue):
-            xl, yl = group[x].iloc[-1], group[y].iloc[-1]
-            ax.text(xl, yl, f"  {label}", va="center", ha="left",
-                    fontsize=_THEME["font_sizes"]["label"],
-                    color=color_by.get(str(label), _THEME["text_color"]))
-        ax.margins(x=0.15)  # room for the right-end labels
+        if area:
+            for label, group in sub.groupby(hue):
+                _gradient_fill(ax, _to_num(group[x]), group[y].to_numpy(float),
+                               color_by.get(str(label), _base_color()))
+        if _THEME.get("swatch_legend"):
+            _swatch_legend(ax, list(color_by), list(color_by.values()),
+                           title=str(hue))
+        else:  # direct right-end labels
+            for label, group in sub.groupby(hue):
+                xl, yl = group[x].iloc[-1], group[y].iloc[-1]
+                ax.text(xl, yl, f"  {label}", va="center", ha="left",
+                        fontsize=_THEME["font_sizes"]["label"],
+                        color=color_by.get(str(label), _THEME["text_color"]))
+            ax.margins(x=0.15)
+    else:
+        color = _base_color()
+        sns.lineplot(data=sub, x=x, y=y, color=color, ax=ax, **kwargs)
+        if area:
+            _gradient_fill(ax, _to_num(sub[x]), sub[y].to_numpy(float), color)
+
+    if pd.api.types.is_datetime64_any_dtype(sub[x]):  # readable date ticks
+        locator = mdates.AutoDateLocator()
+        ax.xaxis.set_major_locator(locator)
+        ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(locator))
+    _draw_callouts(ax, annotations, sub[x].tolist(), sub[y].tolist())
     if title is None:
         title = f"{y} over {x}"
     ax = _finish(ax, title=title, subtitle=subtitle, source=source,
@@ -475,6 +601,7 @@ def missing_bar(
     highlight=None,
     value_labels: bool = True,
     precision: int = 1,
+    fmt: str | None = None,
     title: str | None = None,
     subtitle: str | None = None,
     source: str | None = None,
@@ -486,8 +613,9 @@ def missing_bar(
     The graphical twin of :func:`vizlib.core.missing_values`. The axis runs a
     full 0–100 % so magnitudes read honestly; by default each bar is labelled
     directly and the value axis/tick marks are hidden. ``highlight`` accents
-    the chosen column(s); ``precision`` sets the percent decimals. Returns the
-    ``Axes``; the input is untouched.
+    the chosen column(s); ``precision`` sets the percent decimals and ``fmt``
+    overrides the label format. Under the ``infographic`` preset labels are
+    large and bold. Returns the ``Axes``; the input is untouched.
     """
     _require_dataframe(df)
     if df.shape[1] == 0:
@@ -499,16 +627,15 @@ def missing_bar(
     ax = _new_ax(ax)
     plot = pct.iloc[::-1]  # biggest on top
     kwargs.setdefault("color", _bar_colors(plot.index, highlight))
+    if _THEME.get("linewidth"):
+        kwargs.setdefault("edgecolor", "white")
     container = ax.barh([str(i) for i in plot.index], plot.to_numpy(), **kwargs)
     ax.set_xlim(0, 100)
 
     grid_axis, xlabel = "x", "% missing"
     if value_labels:
-        ax.bar_label(
-            container, labels=[f"{v:.{precision}f}%" for v in plot.to_numpy()],
-            padding=3, fontsize=_THEME["font_sizes"]["label"],
-            color=_THEME["text_color"],
-        )
+        labels = [(fmt % v) if fmt else f"{v:.{precision}f}%" for v in plot.to_numpy()]
+        _draw_value_labels(ax, container, labels=labels)
         ax.xaxis.set_visible(False)
         ax.spines["bottom"].set_visible(False)
         grid_axis, xlabel = None, None
@@ -587,7 +714,7 @@ def pairplot(
     plot_df = _maybe_sample(df, sample, _AUTO_SAMPLE_PAIRPLOT, random_state)
     kwargs.setdefault("corner", True)
     kwargs.setdefault("diag_kind", "kde")
-    palette = _THEME["palette"] if hue else None
+    palette = _hue_palette(df[hue]) if hue else None
     grid = sns.pairplot(plot_df, vars=variables, hue=hue, palette=palette, **kwargs)
     fig = grid.figure
     sizes, tc = _THEME["font_sizes"], _THEME["text_color"]
@@ -605,6 +732,100 @@ def pairplot(
     return grid
 
 
+def donut(
+    data,
+    column: str | None = None,
+    *,
+    top: int = 8,
+    center_text: str | None = None,
+    explode=None,
+    title: str | None = None,
+    subtitle: str | None = None,
+    source: str | None = None,
+    ax: "Axes | None" = None,
+    **kwargs,
+) -> "Axes":
+    """Draw a donut (ring) chart of category shares — an infographic-style extra.
+
+    Accepts a Series of raw values (its value counts are used), a counts
+    Series (numeric values on a labelled index), or a ``(DataFrame, column)``
+    pair. Wedges carry bold percentage labels, category names are attached
+    with leader lines (so small slices stay readable), and ``center_text``
+    prints a bold caption in the hole. ``explode`` (a label or list) pulls
+    wedges out; the busiest ``top`` categories are kept and the rest folded
+    into ``"Other"``.
+
+    A donut trades proportion-accuracy for looks — angles and areas are harder
+    to read than position, so for analysis prefer :func:`bar`. Kept as a
+    presentation extra; never 3-D. Returns the ``Axes``; input not mutated.
+    """
+    if isinstance(data, pd.DataFrame):
+        counts = _resolve_column(data, column).value_counts(dropna=True)
+    else:
+        _require_series(data)
+        if pd.api.types.is_numeric_dtype(data) and not isinstance(
+            data.index, pd.RangeIndex
+        ):
+            counts = data[data.notna()].astype(float)  # already label -> count
+        else:
+            counts = data.value_counts(dropna=True)
+
+    counts = counts[counts > 0]
+    if counts.empty:
+        raise ValueError("no data to plot")
+    if top is not None and len(counts) > top:
+        other = counts.iloc[top:].sum()
+        counts = pd.concat([counts.iloc[:top], pd.Series({"Other": other})])
+
+    labels = [str(i) for i in counts.index]
+    values = counts.to_numpy(dtype=float)
+    colors = _stack_colors(labels)  # traffic-light for low/med/high, else palette
+    explode_arr = None
+    if explode is not None:
+        keys = {explode} if isinstance(explode, str) else set(explode)
+        keys |= {str(k) for k in keys}
+        explode_arr = [0.08 if lab in keys else 0.0 for lab in labels]
+
+    ax = _new_ax(ax)
+    kwargs.setdefault("startangle", 90)
+    wedges, _texts, autotexts = ax.pie(
+        values, colors=colors, explode=explode_arr, counterclock=False,
+        autopct=lambda p: f"{p:.0f}%", pctdistance=0.78,
+        wedgeprops=dict(width=0.42, edgecolor="white", linewidth=2),
+        textprops=dict(color=_THEME["text_color"]), **kwargs,
+    )
+    for autotext, wedge in zip(autotexts, wedges):
+        autotext.set_fontweight("bold")
+        autotext.set_fontsize(_THEME["font_sizes"]["label"])
+        dark = _luminance(wedge.get_facecolor()) < 0.55
+        autotext.set_color("white" if dark else _THEME["text_color"])
+    # leader-line category labels (keep small wedges readable)
+    for wedge, label in zip(wedges, labels):
+        angle = np.deg2rad((wedge.theta1 + wedge.theta2) / 2)
+        xr, yr = np.cos(angle), np.sin(angle)
+        ax.annotate(
+            label, xy=(xr, yr), xytext=(1.25 * np.sign(xr) or 1.25, 1.15 * yr),
+            ha="left" if xr >= 0 else "right", va="center",
+            fontsize=_THEME["font_sizes"]["tick"], color=_THEME["text_color"],
+            arrowprops=dict(arrowstyle="-", color=_THEME["muted"], lw=0.8),
+            bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="none"),
+        )
+    if center_text:
+        ax.text(0, 0, center_text, ha="center", va="center", fontweight="bold",
+                fontsize=_THEME["font_sizes"]["title"], color=_THEME["text_color"])
+    ax.set_aspect("equal")
+
+    background = _THEME.get("background")
+    if background:
+        ax.figure.set_facecolor(background)
+    if title is None:
+        title = "Share by category"
+    _titles(ax, title, subtitle)
+    _source(ax, source)
+    ax.figure.tight_layout()
+    return ax
+
+
 # --- internal helpers -------------------------------------------------------
 
 def _new_ax(ax: "Axes | None") -> "Axes":
@@ -619,17 +840,145 @@ def _base_color():
     return sns.color_palette(_THEME["palette"])[0]
 
 
-def _bar_colors(index, highlight):
-    """Per-bar colours: accent for highlighted labels, muted for the rest.
+def _hue_palette(values):
+    """A palette sized to the number of hue levels (avoids seaborn warnings)."""
+    n = max(int(pd.Series(values).nunique()), 1)
+    return sns.color_palette(_THEME["palette"], n)
 
-    Returns the single base colour when ``highlight`` is ``None``.
+
+def _bar_colors(index, highlight):
+    """Per-bar colours.
+
+    With ``highlight`` (a label or list), highlighted bars use the accent
+    colour and the rest are muted. Otherwise the default preset returns a
+    single base colour, while the infographic preset cycles the vivid palette
+    so bars read as a colourful dashboard.
     """
-    if highlight is None:
-        return _base_color()
-    keys = {highlight} if isinstance(highlight, str) else set(highlight)
-    keys |= {str(k) for k in keys}
-    accent, muted = _THEME["accent"], _THEME["muted"]
-    return [accent if (idx in keys or str(idx) in keys) else muted for idx in index]
+    if highlight is not None:
+        keys = {highlight} if isinstance(highlight, str) else set(highlight)
+        keys |= {str(k) for k in keys}
+        accent, muted = _THEME["accent"], _THEME["muted"]
+        return [accent if (idx in keys or str(idx) in keys) else muted
+                for idx in index]
+    if _THEME.get("bold_labels"):  # infographic preset -> colourful bars
+        pal = sns.color_palette(_THEME["palette"], max(len(index), 1))
+        return [pal[i % len(pal)] for i in range(len(index))]
+    return _base_color()
+
+
+def _luminance(rgba) -> float:
+    """Relative luminance of an RGBA/tuple colour in [0, 1]."""
+    r, g, b = to_rgb(rgba[:3] if len(rgba) >= 3 else rgba)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def _draw_value_labels(ax, container, *, labels=None, fmt="%.0f") -> None:
+    """Label bars directly, styled for the active preset.
+
+    Default: dark labels just past each bar end. Infographic: large bold
+    labels centred on the bar, white on dark fills and dark on light ones.
+    """
+    bold = _THEME.get("bold_labels")
+    fs = _THEME["font_sizes"]["label"] * (1.45 if bold else 1.0)
+    label_kw = {"labels": labels} if labels is not None else {"fmt": fmt}
+    if bold:
+        texts = ax.bar_label(container, label_type="center", fontsize=fs,
+                             fontweight="bold", **label_kw)
+        for text, patch in zip(texts, container.patches):
+            dark = _luminance(patch.get_facecolor()) < 0.55
+            text.set_color("white" if dark else _THEME["text_color"])
+    else:
+        ax.bar_label(container, padding=3, fontsize=fs,
+                     color=_THEME["text_color"], **label_kw)
+
+
+def _swatch_legend(ax, labels, colors, *, title=None, loc="best"):
+    """Draw a frameless legend as a row of colored swatches with labels."""
+    handles = [Patch(facecolor=c, edgecolor="none", label=str(lab))
+               for lab, c in zip(labels, colors)]
+    return ax.legend(
+        handles=handles, frameon=False, loc=loc, title=title,
+        fontsize=_THEME["font_sizes"]["tick"],
+        title_fontsize=_THEME["font_sizes"]["label"],
+        handlelength=1.1, handleheight=1.1, borderaxespad=0.4,
+    )
+
+
+def _to_num(seq):
+    """Numeric view of a sequence for gradient extents / nearest-point math.
+
+    Datetimes (and date-like strings) map through ``date2num`` so callout
+    ``x`` values can be given as strings against a datetime axis.
+    """
+    arr = pd.Series(list(seq))
+    if pd.api.types.is_datetime64_any_dtype(arr):
+        return mdates.date2num(arr.to_numpy())
+    num = pd.to_numeric(arr, errors="coerce")
+    if num.notna().any():
+        return num.to_numpy(dtype=float)
+    return mdates.date2num(pd.to_datetime(arr, errors="coerce").to_numpy())
+
+
+def _stack_colors(cats):
+    """Colours for stacked-area bands: traffic-light for low/med/high, else palette."""
+    low, med, high = {"low", "l"}, {"medium", "med", "m"}, {"high", "h"}
+    names = [str(c).strip().lower() for c in cats]
+    rank = {**{k: 0 for k in low}, **{k: 1 for k in med}, **{k: 2 for k in high}}
+    if all(n in rank for n in names):
+        return [_TRAFFIC_LIGHT[rank[n]] for n in names]
+    return list(sns.color_palette(_THEME["palette"], len(cats)))
+
+
+def _gradient_fill(ax, xnum, y, color, *, baseline=0.0, alpha=0.85) -> None:
+    """Fill under a curve with a vertical gradient from ``color`` to transparent.
+
+    Builds a gradient image and clips it to the polygon between the line and
+    ``baseline`` — mirrors the reference's gradient area panels.
+    """
+    xnum = np.asarray(xnum, dtype=float)
+    y = np.asarray(y, dtype=float)
+    if xnum.size == 0:
+        return
+    rgb = to_rgb(color)
+    ramp = np.empty((256, 1, 4))
+    ramp[:, :, :3] = rgb
+    ramp[:, :, 3] = np.linspace(0.0, alpha, 256)[:, None]  # transparent -> solid
+    xmin, xmax = float(xnum.min()), float(xnum.max())
+    ymin, ymax = float(min(baseline, y.min())), float(max(baseline, y.max()))
+    image = ax.imshow(ramp, aspect="auto", origin="lower",
+                      extent=[xmin, xmax, ymin, ymax], zorder=1)
+    verts = [(xmin, baseline), *zip(xnum, y), (xmax, baseline)]
+    clip = Polygon(verts, closed=True, facecolor="none", edgecolor="none")
+    ax.add_patch(clip)
+    image.set_clip_path(clip)
+
+
+def _draw_callouts(ax, annotations, points_x=None, points_y=None) -> None:
+    """Attach leader-line event callouts to points.
+
+    Each item is ``(x, text)`` (y is read from the nearest plotted point) or
+    ``(x, y, text)``. Rendered with a thin leader line and a small rounded box.
+    """
+    if not annotations:
+        return
+    px = _to_num(points_x) if points_x is not None else None
+    accent, muted, tc = _THEME["accent"], _THEME["muted"], _THEME["text_color"]
+    for item in annotations:
+        if len(item) == 3:
+            xv, yv, text = item
+        elif len(item) == 2 and px is not None:
+            xv, text = item
+            idx = int(np.nanargmin(np.abs(px - _to_num([xv])[0])))
+            xv, yv = list(points_x)[idx], list(points_y)[idx]
+        else:
+            raise ValueError("each annotation must be (x, text) or (x, y, text)")
+        ax.annotate(
+            str(text), xy=(xv, yv), xytext=(0, 34), textcoords="offset points",
+            ha="center", va="bottom", fontsize=_THEME["font_sizes"]["tick"],
+            color=tc, zorder=6,
+            bbox=dict(boxstyle="round,pad=0.35", fc="white", ec=accent, lw=1.2),
+            arrowprops=dict(arrowstyle="-", color=muted, lw=1.0),
+        )
 
 
 def _titles(ax: "Axes", title: str | None = None, subtitle: str | None = None) -> None:
@@ -654,13 +1003,24 @@ def _source(ax: "Axes", text: str | None = None) -> None:
 
 
 def _style_axes(ax: "Axes", *, grid_axis: str | None = "y") -> "Axes":
-    """Apply the shared low-chartjunk styling: no top/right spines, faint grid."""
-    for side in ("top", "right"):
+    """Apply the active preset's chrome: spines, background, grid, tick fonts.
+
+    The default preset hides the top/right spines and keeps a faint grid; the
+    infographic preset hides every spine (the chart bleeds), paints a white
+    background and drops the grid.
+    """
+    sides = (("top", "right", "bottom", "left")
+             if _THEME.get("hide_all_spines") else ("top", "right"))
+    for side in sides:
         ax.spines[side].set_visible(False)
     ax.set_axisbelow(True)
     ax.grid(False)
-    if grid_axis in ("x", "y", "both"):
+    if _THEME.get("show_grid", True) and grid_axis in ("x", "y", "both"):
         ax.grid(True, axis=grid_axis, color=_THEME["grid_color"], linewidth=0.6)
+    background = _THEME.get("background")
+    if background:
+        ax.set_facecolor(background)
+        ax.figure.set_facecolor(background)
     tc = _THEME["text_color"]
     for spine in ax.spines.values():
         spine.set_edgecolor(tc)
