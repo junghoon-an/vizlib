@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vizlib"
-version = "0.3.0"
+version = "0.4.0"
 description = "Tiny exploratory-data-analysis helpers for pandas DataFrames."
 readme = "README.md"
 license = { file = "LICENSE" }
