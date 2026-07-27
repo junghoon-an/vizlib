@@ -209,6 +209,7 @@ def bar(
     as_percent: bool = False,
     fmt: str | None = None,
     label_padding: int = 5,
+    max_label_chars: int | None = None,
     title: str | None = None,
     subtitle: str | None = None,
     source: str | None = None,
@@ -227,9 +228,12 @@ def bar(
     the total; ``precision`` sets the decimals and ``fmt`` overrides the label
     format string. Labels always sit a fixed ``label_padding`` (points) past
     each bar's tip — clear of the y-axis category labels — and the infographic
-    preset only makes them larger and bold. Returns the ``Axes``; the input is
-    never mutated. The default ``title`` is a neutral placeholder — override it
-    with your finding.
+    preset only makes them larger and bold. vizlib-owned figures reserve the
+    left margin against the active fonts automatically, so long category names
+    are not clipped; ``max_label_chars`` optionally ellipsizes very long names
+    as a last resort (off by default — reserving space is preferred). Returns
+    the ``Axes``; the input is never mutated. The default ``title`` is a
+    neutral placeholder — override it with your finding.
     """
     series = _resolve_column(data, column)
     ordered = isinstance(series.dtype, pd.CategoricalDtype) and series.dtype.ordered
@@ -256,6 +260,7 @@ def bar(
     if _THEME.get("linewidth"):
         kwargs.setdefault("edgecolor", "white")
     container = ax.barh([str(i) for i in plot.index], plot.to_numpy(), **kwargs)
+    _ellipsize_yticklabels(ax, max_label_chars)
     biggest = float(plot.max())
     # zero-based, with right headroom so edge labels never clip
     ax.set_xlim(0, biggest * 1.18 if biggest else 1)
@@ -595,7 +600,7 @@ def correlation_heatmap(
                    labelsize=_THEME["font_sizes"]["tick"], length=0)
     _rotate_xticklabels(ax)
     _source(ax, source)
-    ax.figure.tight_layout()
+    _finalize_layout(ax)
     return ax
 
 
@@ -607,6 +612,7 @@ def missing_bar(
     precision: int = 1,
     fmt: str | None = None,
     label_padding: int = 5,
+    max_label_chars: int | None = None,
     title: str | None = None,
     subtitle: str | None = None,
     source: str | None = None,
@@ -621,8 +627,10 @@ def missing_bar(
     the chosen column(s); ``precision`` sets the percent decimals and ``fmt``
     overrides the label format. Labels sit a fixed ``label_padding`` (points)
     past each bar's tip — clear of the column names on the left — and the
-    infographic preset only makes them larger and bold. Returns the ``Axes``;
-    the input is untouched.
+    infographic preset only makes them larger and bold. The left margin is
+    reserved against the active fonts automatically so long column names are
+    not clipped; ``max_label_chars`` optionally ellipsizes very long names as a
+    last resort (off by default). Returns the ``Axes``; the input is untouched.
     """
     _require_dataframe(df)
     if df.shape[1] == 0:
@@ -637,6 +645,7 @@ def missing_bar(
     if _THEME.get("linewidth"):
         kwargs.setdefault("edgecolor", "white")
     container = ax.barh([str(i) for i in plot.index], plot.to_numpy(), **kwargs)
+    _ellipsize_yticklabels(ax, max_label_chars)
 
     grid_axis, xlabel = "x", "% missing"
     if value_labels:
@@ -688,7 +697,7 @@ def missing_matrix(
                    labelsize=_THEME["font_sizes"]["tick"], length=0)
     _rotate_xticklabels(ax)
     _source(ax, source)
-    ax.figure.tight_layout()
+    _finalize_layout(ax)
     return ax
 
 
@@ -832,14 +841,23 @@ def donut(
         title = "Share by category"
     _titles(ax, title, subtitle)
     _source(ax, source)
-    ax.figure.tight_layout()
+    _finalize_layout(ax)
     return ax
 
 
 # --- internal helpers -------------------------------------------------------
 
 def _new_ax(ax: "Axes | None", *, min_height: float | None = None) -> "Axes":
-    """Return ``ax`` or a fresh one sized from the shared theme.
+    """Return ``ax`` or a fresh, vizlib-owned figure sized from the theme.
+
+    A freshly-created figure uses matplotlib's *constrained* layout engine so
+    the axes automatically reserve room for tick labels rendered at the
+    currently active theme's fonts — and re-measure at draw time. That makes
+    the margins self-correct whenever the style changes (e.g. the larger,
+    bolder ``infographic`` fonts), instead of assuming one fixed size. The
+    figure is tagged as vizlib-owned so :func:`_finalize_layout` knows it may
+    manage the layout; when the caller passes their own ``ax`` we leave their
+    figure untouched.
 
     ``min_height`` grows a freshly-created figure so horizontal-bar rows stay
     tall enough for their labels; it is ignored when the caller passes ``ax``.
@@ -848,8 +866,24 @@ def _new_ax(ax: "Axes | None", *, min_height: float | None = None) -> "Axes":
         width, height = _THEME["figsize"]
         if min_height is not None:
             height = max(height, min_height)
-        _, ax = plt.subplots(figsize=(width, height), dpi=_THEME["dpi"])
+        fig, ax = plt.subplots(figsize=(width, height), dpi=_THEME["dpi"],
+                               constrained_layout=True)
+        fig._vizlib_owned = True  # we created it -> we may manage its layout
     return ax
+
+
+def _finalize_layout(ax: "Axes") -> None:
+    """Resolve the figure layout without hijacking a caller-supplied one.
+
+    vizlib-owned figures (see :func:`_new_ax`) already run a constrained
+    layout engine that reserves space measured against the current theme's
+    fonts, so there is nothing to do — calling ``tight_layout`` on top would
+    fight that engine and warn. When the caller supplied their own ``ax`` we
+    deliberately leave their figure's layout alone (honouring ``ax=`` means
+    not overriding their composition). This helper centralises that contract
+    so every plot treats layout the same way.
+    """
+    return None
 
 
 def _base_color():
@@ -911,6 +945,26 @@ def _draw_value_labels(ax, container, *, labels=None, fmt="%.0f", padding=5) -> 
         fontweight=("bold" if bold else "normal"),
         color=_THEME["text_color"], **label_kw,
     )
+
+
+def _ellipsize_yticklabels(ax, max_chars: int | None) -> None:
+    """Optionally shorten long y-tick labels to ``max_chars`` with an ellipsis.
+
+    Off by default (``max_chars is None``): the constrained layout already
+    reserves room for full labels, so reserving space is preferred over
+    truncating. When set, each label longer than ``max_chars`` keeps its
+    leading characters and gains a trailing ``…``. The tick positions are
+    fixed by the categorical bars, so re-setting the label text is safe.
+    """
+    if max_chars is None or max_chars < 1:
+        return
+    new = []
+    for tick in ax.get_yticklabels():
+        s = tick.get_text()
+        new.append(s if len(s) <= max_chars
+                   else (s[: max_chars - 1] + "…" if max_chars > 1 else "…"))
+    ax.set_yticks(ax.get_yticks())  # pin positions so set_yticklabels won't warn
+    ax.set_yticklabels(new)
 
 
 def _swatch_legend(ax, labels, colors, *, title=None, loc="best"):
@@ -1060,7 +1114,7 @@ def _finish(ax, *, title=None, subtitle=None, source=None, xlabel=None,
         ax.set_ylabel(ylabel, fontsize=sizes["label"], color=tc)
     _style_axes(ax, grid_axis=grid_axis)
     _source(ax, source)
-    ax.figure.tight_layout()
+    _finalize_layout(ax)
     return ax
 
 

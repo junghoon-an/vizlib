@@ -310,10 +310,19 @@ Every plotting function (except `set_theme`) accepts the keyword-only
 checklist hooks `title=`, `subtitle=`, `source=` and, where it composes,
 `ax=` — shown as `...` above. `bar` and `missing_bar` additionally take
 `highlight=` (accent a label or list of labels), `value_labels=` (direct
-labels, on by default) and `precision=` (label decimals). All new
-parameters are keyword-only with defaults, so existing calls keep working.
-Every plotting function takes a pandas object, never mutates it, and returns
-the `Axes`/`Figure` it drew on.
+labels, on by default), `precision=` (label decimals), `label_padding=`
+(fixed points past each bar tip) and `max_label_chars=` (optionally
+ellipsize very long category/column names; off by default — the layout
+reserves room for full names automatically). All new parameters are
+keyword-only with defaults, so existing calls keep working. Every plotting
+function takes a pandas object, never mutates it, and returns the
+`Axes`/`Figure` it drew on.
+
+Figures that vizlib creates use matplotlib's constrained layout, so the
+margins are measured against the *active* theme's fonts and re-fit at draw
+time — switching to the larger `infographic` style never pushes tick labels
+into the plot. When you pass your own `ax=`, vizlib leaves your figure's
+layout untouched.
 
 ## License
 
