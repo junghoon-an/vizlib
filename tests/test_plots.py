@@ -11,6 +11,7 @@ matplotlib.use("Agg")
 import inspect  # noqa: E402
 
 import matplotlib.colors as mcolors  # noqa: E402
+import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 import pytest  # noqa: E402
 from matplotlib.axes import Axes  # noqa: E402
@@ -301,6 +302,79 @@ def test_infographic_ax_honored_and_no_mutation(df):
     plots.line(df, "age", "height", area=True)
     plots.donut(df["group"])
     pd.testing.assert_frame_equal(df, before)
+
+
+# --- horizontal-bar label placement (regression: labels over y-axis) --------
+
+
+def _missing_df(n_cols=6, n_rows=60):
+    rng = np.random.default_rng(0)
+    cols = {}
+    for i in range(n_cols):
+        p_missing = min(0.05 + i * 0.03, 0.6)  # varied but always valid
+        cols[f"col_{i:02d}"] = rng.choice([1.0, np.nan], n_rows,
+                                          p=[1 - p_missing, p_missing])
+    return pd.DataFrame(cols)
+
+
+def _label_gaps(ax):
+    """Pixel gap between each value label and its bar's tip (drawn order)."""
+    ax.figure.canvas.draw()
+    gaps = []
+    for text, patch in zip(ax.texts, ax.patches):
+        tip_px = ax.transData.transform((patch.get_width(), 0))[0]
+        gaps.append(text.get_window_extent().x0 - tip_px)
+    return gaps
+
+
+@pytest.mark.parametrize("preset", ["infographic", "default"])
+def test_missing_bar_labels_edge_placed_and_clear_of_yaxis(preset):
+    plots.set_theme(style_preset=preset)
+    ax = plots.missing_bar(_missing_df())
+    ax.figure.canvas.draw()
+    axis0_px = ax.transData.transform((0, 0))[0]  # the value-axis (x=0) in pixels
+    for text, patch in zip(ax.texts, ax.patches):
+        # edge placement: label anchored at the bar tip, not its centre
+        assert text.xy[0] == pytest.approx(patch.get_width())
+        # and drawn to the right of the axis, never over the left column names
+        assert text.get_window_extent().x0 >= axis0_px
+
+
+@pytest.mark.parametrize("preset", ["infographic", "default"])
+def test_missing_bar_label_gap_is_uniform(preset):
+    plots.set_theme(style_preset=preset)
+    gaps = _label_gaps(plots.missing_bar(_missing_df()))
+    assert max(gaps) - min(gaps) < 1.0  # same fixed offset for every label
+
+
+def test_missing_bar_has_right_headroom():
+    plots.set_theme(style_preset="infographic")
+    ax = plots.missing_bar(_missing_df())
+    assert ax.get_xlim()[1] > max(p.get_width() for p in ax.patches)
+
+
+def test_missing_bar_labels_do_not_overlap_vertically():
+    plots.set_theme(style_preset="infographic")
+    ax = plots.missing_bar(_missing_df(n_cols=20))
+    ax.figure.canvas.draw()
+    boxes = sorted((t.get_window_extent() for t in ax.texts), key=lambda b: b.y0)
+    for lower, upper in zip(boxes, boxes[1:]):
+        assert lower.y1 <= upper.y0 + 0.5  # adjacent labels don't intersect
+
+
+def test_bar_horizontal_labels_edge_placed_under_preset(df):
+    plots.set_theme(style_preset="infographic")
+    ax = plots.bar(df, "city")
+    for text, patch in zip(ax.texts, ax.patches):
+        assert text.xy[0] == pytest.approx(patch.get_width())  # at tip, not centre
+
+
+def test_missing_bar_under_preset_no_mutation():
+    mdf = _missing_df()
+    before = mdf.copy()
+    plots.set_theme(style_preset="infographic")
+    assert isinstance(plots.missing_bar(mdf), Axes)
+    pd.testing.assert_frame_equal(mdf, before)
 
 
 def test_plots_never_mutate_input(df):
