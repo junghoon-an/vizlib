@@ -36,7 +36,9 @@ try:  # matplotlib + seaborn ship as regular dependencies
     from matplotlib.axes import Axes
     from matplotlib.colors import to_rgb
     from matplotlib.figure import Figure
+    from matplotlib.font_manager import FontProperties
     from matplotlib.patches import Patch, Polygon
+    from matplotlib.textpath import TextPath
 except ImportError as exc:  # pragma: no cover - exercised only without the deps
     raise ImportError(
         "vizlib.plots requires matplotlib and seaborn. "
@@ -65,6 +67,14 @@ _VIVID_PALETTE = [
 ]
 # Sequential traffic-light scale for ordered low -> medium -> high data.
 _TRAFFIC_LIGHT = ["#27AAE1", "#FDB913", "#EE3524"]
+
+# Explicit horizontal-bar margin reservation (see _reserve_hbar_margins). Gaps
+# are in points (font-size-independent); caps bound how much of the figure the
+# names / value labels may claim before we ellipsize instead.
+_HBAR_TICK_PAD_PTS = 8      # gap between the widest column name and the axes
+_HBAR_LABEL_PAD_PTS = 8     # gap kept past the widest value label
+_HBAR_LEFT_CAP = 0.40       # names never claim more than this fraction of width
+_HBAR_RIGHT_CAP = 0.32      # nor value labels this much on the right
 
 __all__ = [
     "set_theme",
@@ -255,7 +265,8 @@ def bar(
         counts = counts / total * 100 if total else counts * 0.0
 
     plot = counts.iloc[::-1]  # biggest on top for a horizontal bar
-    ax = _new_ax(ax, min_height=0.4 * len(plot) + 1)  # tall enough per row
+    # horizontal bars reserve explicit worst-case margins, not auto-layout
+    ax = _new_ax(ax, min_height=0.4 * len(plot) + 1, constrained=False)
     kwargs.setdefault("color", _bar_colors(plot.index, highlight))
     if _THEME.get("linewidth"):
         kwargs.setdefault("edgecolor", "white")
@@ -267,18 +278,23 @@ def bar(
 
     name = series.name if series.name is not None else "value"
     grid_axis, xlabel = "x", ("% of total" if as_percent else "count")
+    value_strings = []
     if value_labels:
         default_fmt = f"%.{precision}f%%" if as_percent else f"%.{precision}f"
-        _draw_value_labels(ax, container, fmt=fmt or default_fmt,
-                           padding=label_padding)
+        used_fmt = fmt or default_fmt
+        value_strings = [used_fmt % v for v in plot.to_numpy()]
+        _draw_value_labels(ax, container, fmt=used_fmt, padding=label_padding)
         ax.xaxis.set_visible(False)                 # value axis is redundant now
         ax.spines["bottom"].set_visible(False)
         grid_axis, xlabel = None, None
     ax.tick_params(length=0)  # no tick marks on bar-type charts
     if title is None:
         title = f"Record count by {name}"
-    return _finish(ax, title=title, subtitle=subtitle, source=source,
-                   xlabel=xlabel, ylabel=str(name), grid_axis=grid_axis)
+    ax = _finish(ax, title=title, subtitle=subtitle, source=source,
+                 xlabel=xlabel, ylabel=str(name), grid_axis=grid_axis)
+    _reserve_hbar_margins(ax, value_strings, n_bars=len(plot),
+                          max_label_chars=max_label_chars)
+    return ax
 
 
 def hist(
@@ -640,7 +656,8 @@ def missing_bar(
     pct = pct.sort_values(ascending=False)
 
     plot = pct.iloc[::-1]  # biggest on top
-    ax = _new_ax(ax, min_height=0.4 * len(plot) + 1)  # tall enough per row
+    # horizontal bars reserve explicit worst-case margins, not auto-layout
+    ax = _new_ax(ax, min_height=0.4 * len(plot) + 1, constrained=False)
     kwargs.setdefault("color", _bar_colors(plot.index, highlight))
     if _THEME.get("linewidth"):
         kwargs.setdefault("edgecolor", "white")
@@ -648,8 +665,10 @@ def missing_bar(
     _ellipsize_yticklabels(ax, max_label_chars)
 
     grid_axis, xlabel = "x", "% missing"
+    value_strings = []
     if value_labels:
         labels = [(fmt % v) if fmt else f"{v:.{precision}f}%" for v in plot.to_numpy()]
+        value_strings = labels
         _draw_value_labels(ax, container, labels=labels, padding=label_padding)
         # right headroom so edge labels clear the axis; scale hidden anyway
         ax.set_xlim(0, max(float(plot.max()) * 1.12, 1.0))
@@ -661,8 +680,11 @@ def missing_bar(
     ax.tick_params(length=0)
     if title is None:
         title = "Share of missing values by column"
-    return _finish(ax, title=title, subtitle=subtitle, source=source,
-                   xlabel=xlabel, ylabel="column", grid_axis=grid_axis)
+    ax = _finish(ax, title=title, subtitle=subtitle, source=source,
+                 xlabel=xlabel, ylabel="column", grid_axis=grid_axis)
+    _reserve_hbar_margins(ax, value_strings, n_bars=len(plot),
+                          max_label_chars=max_label_chars)
+    return ax
 
 
 def missing_matrix(
@@ -847,18 +869,23 @@ def donut(
 
 # --- internal helpers -------------------------------------------------------
 
-def _new_ax(ax: "Axes | None", *, min_height: float | None = None) -> "Axes":
+def _new_ax(ax: "Axes | None", *, min_height: float | None = None,
+            constrained: bool = True) -> "Axes":
     """Return ``ax`` or a fresh, vizlib-owned figure sized from the theme.
 
-    A freshly-created figure uses matplotlib's *constrained* layout engine so
-    the axes automatically reserve room for tick labels rendered at the
-    currently active theme's fonts — and re-measure at draw time. That makes
-    the margins self-correct whenever the style changes (e.g. the larger,
-    bolder ``infographic`` fonts), instead of assuming one fixed size. The
-    figure is tagged as vizlib-owned so :func:`_finalize_layout` knows it may
-    manage the layout; when the caller passes their own ``ax`` we leave their
-    figure untouched.
+    By default a freshly-created figure uses matplotlib's *constrained* layout
+    engine so the axes automatically reserve room for tick labels rendered at
+    the active theme's fonts — and re-measure at draw time. That makes the
+    margins self-correct whenever the style changes.
 
+    Horizontal-bar charts pass ``constrained=False``: constrained layout only
+    ever measures the *active* artists, so it cannot reserve room for an
+    inactive preset's larger fonts. Those charts instead reserve explicit,
+    worst-case margins with :func:`_reserve_hbar_margins` (tagged
+    ``_vizlib_manual_margins``) so the axes never move on a style switch.
+
+    The figure is tagged vizlib-owned so the layout helpers know they may
+    manage it; when the caller passes their own ``ax`` we leave it untouched.
     ``min_height`` grows a freshly-created figure so horizontal-bar rows stay
     tall enough for their labels; it is ignored when the caller passes ``ax``.
     """
@@ -867,8 +894,10 @@ def _new_ax(ax: "Axes | None", *, min_height: float | None = None) -> "Axes":
         if min_height is not None:
             height = max(height, min_height)
         fig, ax = plt.subplots(figsize=(width, height), dpi=_THEME["dpi"],
-                               constrained_layout=True)
+                               constrained_layout=constrained)
         fig._vizlib_owned = True  # we created it -> we may manage its layout
+        if not constrained:
+            fig._vizlib_manual_margins = True
     return ax
 
 
@@ -884,6 +913,138 @@ def _finalize_layout(ax: "Axes") -> None:
     so every plot treats layout the same way.
     """
     return None
+
+
+def _text_width_px(s: str, *, size: float, weight, dpi: float) -> float:
+    """Rendered width of ``s`` in pixels at a given font size/weight.
+
+    Measured off a :class:`~matplotlib.textpath.TextPath`, so no renderer or
+    active-figure state is touched — the width is independent of whichever
+    style is currently active. That is what lets us reserve space for an
+    *inactive* preset's larger fonts without disturbing the active render.
+    """
+    if not s:
+        return 0.0
+    tp = TextPath((0, 0), str(s), prop=FontProperties(size=size, weight=weight))
+    return tp.get_extents().width * dpi / 72.0
+
+
+def _resolved_theme(preset_name: str) -> dict:
+    """The fully-merged theme dict for a preset (defaults + its overlay)."""
+    base = {**_DEFAULTS, "font_sizes": dict(_DEFAULTS["font_sizes"])}
+    overlay = _PRESETS[preset_name]
+    base.update({k: v for k, v in overlay.items() if k != "font_sizes"})
+    if "font_sizes" in overlay:
+        base["font_sizes"] = dict(overlay["font_sizes"])
+    return base
+
+
+def _label_factor(bold: bool, n_bars: int) -> float:
+    """Value-label size multiplier — mirror of the logic in _draw_value_labels."""
+    factor = 1.45 if bold else 1.0
+    if n_bars > 15:
+        factor = min(factor, 1.1)
+    return factor
+
+
+def _hbar_font_regimes(n_bars: int):
+    """``(tick_regimes, label_regimes)`` across every preset and the active theme.
+
+    Each regime is a ``(size, weight)`` pair. Enumerating *all* presets — not
+    just the active ``_THEME`` — is the whole point: the reserved margin is a
+    worst-case superset, so the axes stay put when the user switches styles.
+    """
+    themes = [_resolved_theme(name) for name in _PRESETS]
+    themes.append(_THEME)  # also fit any custom overrides on the active theme
+    tick, label = set(), set()
+    for th in themes:
+        sizes = th["font_sizes"]
+        tick.add((sizes["tick"], "normal"))  # tick labels are never bold
+        bold = bool(th.get("bold_labels"))
+        label.add((sizes["label"] * _label_factor(bold, n_bars),
+                   "bold" if bold else "normal"))
+    return sorted(tick), sorted(label)
+
+
+def _widest_px(labels, regimes, dpi) -> float:
+    """Max rendered width (px) of any label over any font regime."""
+    return max((_text_width_px(s, size=sz, weight=w, dpi=dpi)
+                for s in labels for sz, w in regimes), default=0.0)
+
+
+def _fit_ytick_labels(ax, labels, avail_px, tick_regimes, dpi, max_label_chars):
+    """Ellipsize y labels so the widest fits ``avail_px`` at the largest font.
+
+    Width grows monotonically with the character budget, so the largest budget
+    that still fits is found with a binary search (a linear scan would rebuild
+    a TextPath for every dropped character of a very long name).
+    """
+    max_size = max(sz for sz, _ in tick_regimes)
+    longest = max((len(s) for s in labels), default=0)
+    hi = min(max_label_chars, longest) if max_label_chars else longest
+
+    def _trunc(k):
+        return [s if len(s) <= k else (s[: k - 1] + "…" if k > 1 else "…")
+                for s in labels]
+
+    lo, best = 1, 1
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        if _widest_px(_trunc(mid), [(max_size, "normal")], dpi) <= avail_px:
+            best, lo = mid, mid + 1
+        else:
+            hi = mid - 1
+    chosen = _trunc(best)
+    ax.set_yticks(ax.get_yticks())  # pin positions so set_yticklabels won't warn
+    ax.set_yticklabels(chosen)
+    return chosen
+
+
+def _reserve_hbar_margins(ax, value_labels, *, n_bars, max_label_chars=None) -> None:
+    """Reserve worst-case left margin (names) and right headroom (value labels).
+
+    Only manages vizlib-owned horizontal-bar figures; a caller-supplied ``ax``
+    is left untouched (honouring ``ax=``). Widths are measured against the
+    largest font across *all* presets, so the axes position is identical no
+    matter which style is active — the bars never shift on a theme switch and
+    can never be overlapped by the y-axis column names. A pathologically long
+    name that would exceed :data:`_HBAR_LEFT_CAP` is ellipsized rather than
+    crushing the plot.
+    """
+    fig = ax.figure
+    if not getattr(fig, "_vizlib_owned", False):
+        return  # caller supplied ax: do not manage their margins
+    dpi = fig.dpi
+    fig_w_px = fig.get_figwidth() * dpi
+    tick_regimes, label_regimes = _hbar_font_regimes(n_bars)
+
+    y_labels = [t.get_text() for t in ax.get_yticklabels()]
+    tick_pad = _HBAR_TICK_PAD_PTS * dpi / 72.0
+    left = (_widest_px(y_labels, tick_regimes, dpi) + tick_pad) / fig_w_px
+    if left > _HBAR_LEFT_CAP:  # guardrail: ellipsize instead of a crushed plot
+        avail = _HBAR_LEFT_CAP * fig_w_px - tick_pad
+        y_labels = _fit_ytick_labels(ax, y_labels, avail, tick_regimes, dpi,
+                                      max_label_chars)
+        left = (_widest_px(y_labels, tick_regimes, dpi) + tick_pad) / fig_w_px
+    left = min(left, _HBAR_LEFT_CAP)
+
+    right_reserve = 0.0
+    if value_labels:
+        label_pad = _HBAR_LABEL_PAD_PTS * dpi / 72.0
+        right_reserve = min(
+            (_widest_px(value_labels, label_regimes, dpi) + label_pad) / fig_w_px,
+            _HBAR_RIGHT_CAP,
+        )
+    right = 1.0 - right_reserve
+    if right - left < 0.2:  # always keep a usable plotting band
+        right = min(left + 0.2, 0.98)
+
+    # One-shot tidy fixes top/bottom (title, source) at the active fonts — run
+    # after any ellipsis so labels already fit — then override left/right with
+    # the cross-preset worst case. tight_layout leaves an inert placeholder
+    # engine, so subplots_adjust sticks at draw time.
+    fig.tight_layout()
+    fig.subplots_adjust(left=left, right=right)
 
 
 def _base_color():
