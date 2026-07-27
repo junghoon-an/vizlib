@@ -377,6 +377,121 @@ def test_missing_bar_under_preset_no_mutation():
     pd.testing.assert_frame_equal(mdf, before)
 
 
+# --- auto-reserving layout (regression: enlarged fonts spill into the plot) --
+
+def _long_name_df(n_cols=7, n_rows=80):
+    """Long column names + short bars — the case that used to overflow."""
+    rng = np.random.default_rng(1)
+    cols = {}
+    for i in range(n_cols):
+        name = f"a_really_long_descriptive_column_name_number_{i:02d}"
+        col = rng.choice([1.0, np.nan], n_rows,
+                         p=[1 - min(0.03 + i * 0.02, 0.5), min(0.03 + i * 0.02, 0.5)])
+        cols[name] = col
+    return pd.DataFrame(cols)
+
+
+def _bboxes_overlap(a, b, tol=0.5):
+    return not (a.x1 <= b.x0 + tol or b.x1 <= a.x0 + tol
+                or a.y1 <= b.y0 + tol or b.y1 <= a.y0 + tol)
+
+
+@pytest.mark.parametrize("preset", ["default", "infographic"])
+def test_ticklabels_stay_in_left_margin(preset):
+    """Column names must not spill rightward into the plotting area.
+
+    Proves the left margin is reserved against the *active* style's fonts:
+    the layout self-corrects for the larger, bolder infographic ticks.
+    """
+    plots.set_theme(style_preset=preset)
+    ax = plots.missing_bar(_long_name_df())
+    ax.figure.canvas.draw()
+    left = ax.get_window_extent().x0
+    for label in ax.get_yticklabels():
+        assert label.get_window_extent().x1 <= left + 1.0
+
+
+@pytest.mark.parametrize("preset", ["default", "infographic"])
+def test_value_labels_do_not_overlap_ticklabels(preset):
+    plots.set_theme(style_preset=preset)
+    ax = plots.missing_bar(_long_name_df())
+    ax.figure.canvas.draw()
+    ticks = [t.get_window_extent() for t in ax.get_yticklabels()]
+    values = [t.get_window_extent() for t in ax.texts]
+    for vb in values:
+        assert not any(_bboxes_overlap(vb, tb) for tb in ticks)
+
+
+@pytest.mark.parametrize("preset", ["default", "infographic"])
+def test_value_labels_do_not_overlap_each_other(preset):
+    plots.set_theme(style_preset=preset)
+    ax = plots.missing_bar(_missing_df(n_cols=20))
+    ax.figure.canvas.draw()
+    boxes = sorted((t.get_window_extent() for t in ax.texts), key=lambda b: b.y0)
+    for lower, upper in zip(boxes, boxes[1:]):
+        assert lower.y1 <= upper.y0 + 0.5
+
+
+@pytest.mark.parametrize("preset", ["default", "infographic"])
+def test_missing_bar_headroom_no_clipping(preset):
+    plots.set_theme(style_preset=preset)
+    ax = plots.missing_bar(_long_name_df())
+    assert ax.get_xlim()[1] > max(p.get_width() for p in ax.patches)
+
+
+def test_layout_is_style_switch_stable():
+    """Set infographic, plot, measure; switch to default, plot, measure.
+
+    Both must lay out with no overlap — because the layout is resolved per
+    call against the fonts current at that call, not fixed at import time.
+    """
+    def _no_overlap(ax):
+        ax.figure.canvas.draw()
+        left = ax.get_window_extent().x0
+        assert all(t.get_window_extent().x1 <= left + 1.0
+                   for t in ax.get_yticklabels())
+        ticks = [t.get_window_extent() for t in ax.get_yticklabels()]
+        for vb in (t.get_window_extent() for t in ax.texts):
+            assert not any(_bboxes_overlap(vb, tb) for tb in ticks)
+
+    plots.set_theme(style_preset="infographic")
+    _no_overlap(plots.missing_bar(_long_name_df()))
+    plots.set_theme(style_preset="default")
+    _no_overlap(plots.missing_bar(_long_name_df()))
+
+
+def test_ax_supplied_layout_not_hijacked(df):
+    """Passing ``ax=`` must leave the caller's figure layout untouched."""
+    import matplotlib.pyplot as plt
+
+    plots.set_theme(style_preset="infographic")
+    fig, ax = plt.subplots()
+    engine_before = fig.get_layout_engine()
+    out = plots.missing_bar(df, ax=ax)
+    assert out is ax
+    assert fig.get_layout_engine() is engine_before  # not overridden
+    assert not getattr(fig, "_vizlib_owned", False)
+
+
+def test_owned_figure_uses_constrained_layout(df):
+    from matplotlib.layout_engine import ConstrainedLayoutEngine
+
+    ax = plots.missing_bar(df)
+    assert isinstance(ax.figure.get_layout_engine(), ConstrainedLayoutEngine)
+
+
+def test_max_label_chars_ellipsizes():
+    dfl = pd.DataFrame({
+        "a_really_long_descriptive_column_name": np.r_[np.nan, np.ones(9)],
+        "short": np.r_[np.nan, np.nan, np.ones(8)],
+    })
+    ax = plots.missing_bar(dfl, max_label_chars=12)
+    labels = [t.get_text() for t in ax.get_yticklabels()]
+    assert any(s.endswith("…") for s in labels)
+    assert all(len(s) <= 12 for s in labels)
+    assert "short" in labels  # short names left intact
+
+
 def test_plots_never_mutate_input(df):
     before = df.copy()
     plots.bar(df, "city", highlight="SF", title="t", subtitle="s", source="src")
