@@ -19,7 +19,7 @@ from .core import (
     value_counts_bar,
 )
 
-__version__ = "0.6.2"
+__version__ = "0.6.3"
 
 __all__ = [
     "load",

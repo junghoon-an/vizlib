@@ -21,7 +21,7 @@ def test_bare_import_does_not_load_plotting_backends():
         "import sys, vizlib;"
         "assert 'matplotlib' not in sys.modules, 'matplotlib leaked into import vizlib';"
         "assert 'seaborn' not in sys.modules, 'seaborn leaked into import vizlib';"
-        "assert vizlib.__version__ == '0.6.2'"
+        "assert vizlib.__version__ == '0.6.3'"
     )
     result = subprocess.run(
         [sys.executable, "-c", code], capture_output=True, text=True

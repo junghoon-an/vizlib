@@ -319,10 +319,13 @@ function takes a pandas object, never mutates it, and returns the
 `Axes`/`Figure` it drew on.
 
 Figures that vizlib creates use matplotlib's constrained layout, so the
-margins are measured against the *active* theme's fonts and re-fit at draw
-time — switching to the larger `infographic` style never pushes tick labels
-into the plot. When you pass your own `ax=`, vizlib leaves your figure's
-layout untouched.
+margins are measured against the theme's fonts and re-fit at draw time.
+Horizontal-bar charts (`missing_bar` and `bar`) go a step further: their
+left margin and right value-label headroom are reserved for the *largest*
+label footprint across **all** style presets, so the bars sit in exactly the
+same place — and the column names can never overlap them — whether the
+`default` or `infographic` style is active, or after switching between them.
+When you pass your own `ax=`, vizlib leaves your figure's layout untouched.
 
 ## License
 
