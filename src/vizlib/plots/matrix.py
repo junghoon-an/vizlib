@@ -13,7 +13,7 @@ from .data import (
     _require_columns,
     _upper_triangle_mask,
 )
-from .marks import _base_color, _hue_palette
+from .marks import _base_color, _hue_palette, _luminance
 from .theme import _THEME
 
 
@@ -79,7 +79,11 @@ def missing_matrix(
     if df.shape[1] == 0:
         raise ValueError("no columns to plot")
     ax = _new_ax(ax)
-    present, missing = "#e8e8e8", _base_color()
+    # "present" cells: a light panel on light themes, a lighter-than-navy panel
+    # on a dark theme so the matrix reads on either background.
+    bg = _THEME.get("background")
+    present = "#33335A" if (bg and _luminance(bg) < 0.4) else "#e8e8e8"
+    missing = _base_color()
     sns.heatmap(df.isna(), cbar=False, cmap=[present, missing],
                 yticklabels=False, ax=ax, **kwargs)
     for spine in ax.spines.values():

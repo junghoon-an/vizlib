@@ -20,6 +20,14 @@ _VIVID_PALETTE = [
 # Sequential traffic-light scale for ordered low -> medium -> high data.
 _TRAFFIC_LIGHT = ["#27AAE1", "#FDB913", "#EE3524"]
 
+# Bright neon palette for the "neon" preset — a dark-navy dashboard look
+# (hot pink, cyan, mint, lavender, yellow, ...). Like ``infographic`` it is
+# NOT colorblind-safe; it is a presentation style, not an analytical default.
+_NEON_PALETTE = [
+    "#FF4F8B", "#37C7E6", "#4CE0B3", "#9B8CFF", "#FFE45E",
+    "#F58220", "#C86DD7", "#2ED1A2", "#5B8DEF",
+]
+
 # Shared, mutable defaults. Updated by set_theme(); read by every plot so a
 # checklist-compliant figure needs no configuration and stays consistent.
 _DEFAULTS: dict = {
@@ -58,9 +66,33 @@ _PRESETS: dict = {
         "swatch_legend": True,
         "font_sizes": {"title": 18, "subtitle": 13, "label": 13, "tick": 11, "source": 9},
     },
+    "neon": {
+        "palette": list(_NEON_PALETTE),
+        "accent": "#FF4F8B",
+        "muted": "#7A7AA8",
+        "text_color": "#EDEDF7",      # near-white, high contrast on navy
+        "grid_color": "#3A3A63",      # faint light gridlines on the dark panel
+        "background": "#1B1B3E",      # deep indigo dashboard background
+        "linewidth": 2.6,
+        "hide_all_spines": True,
+        "show_grid": True,            # thin gridlines like the reference
+        "bold_labels": True,
+        "swatch_legend": True,
+        "font_sizes": {"title": 18, "subtitle": 13, "label": 13, "tick": 11, "source": 9},
+    },
 }
 
 _THEME: dict = {**_DEFAULTS, "font_sizes": dict(_DEFAULTS["font_sizes"])}
+
+
+def _surface_color():
+    """Background for small label boxes / separators.
+
+    The active theme's background when one is set (e.g. the dark ``neon``
+    navy), otherwise plain white — so callout boxes, donut separators and the
+    like stay legible on both light and dark themes.
+    """
+    return _THEME.get("background") or "white"
 
 
 def _resolved_theme(preset_name: str) -> dict:
@@ -104,6 +136,10 @@ def set_theme(
       lines, gradient area fills and swatch legends. **This palette is not
       fully colorblind-safe** (it uses red/green and red/orange adjacencies);
       prefer the default for analytical work and keep this for presentation.
+    - ``"neon"``: the same bold dashboard chrome on a **dark navy background**
+      with a bright neon palette (hot pink, cyan, mint, lavender, yellow),
+      light text and thin light gridlines. Also **not colorblind-safe** — a
+      presentation/dashboard style.
 
     Setting a preset resets the theme to that preset's look; any other
     argument you pass is then applied on top, so every knob stays

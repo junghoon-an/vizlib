@@ -170,9 +170,21 @@ plots.line(df, "date", "admissions", area=True,
 plots.set_theme(style_preset="default")        # back to the analytical look
 ```
 
-**Caveats — this is a presentation look, not an analytical one.** The vivid
-palette is **not fully colorblind-safe** (it uses red/green and red/orange
-adjacencies), so for analysis keep the default `colorblind` palette. The
+For a **dark dashboard** aesthetic, `style_preset="neon"` applies the same
+bold chrome on a deep-navy background with a bright neon palette (hot pink,
+cyan, mint, lavender, yellow), light text and thin light gridlines:
+
+```python
+plots.set_theme(style_preset="neon")
+plots.bar(df, "segment")
+plots.donut(df["quarter"], center_text="200")
+plots.line(df, "month", "value", area=True)
+```
+
+**Caveats — these are presentation looks, not analytical ones.** The vivid
+`infographic` and `neon` palettes are **not fully colorblind-safe** (they use
+red/green and red/orange adjacencies), so for analysis keep the default
+`colorblind` palette. The
 optional [`donut`](#plotting--vizlibplots) chart is an infographic extra that
 trades proportion-accuracy for looks — a `bar` is easier to read
 accurately. Everything is opt-in: with no `set_theme(...)` call every plot
@@ -304,7 +316,7 @@ pandas, so `import vizlib` stays fast.
 | `missing_matrix(df, *, ...)` | Nullity matrix (dark cells mark missing values). |
 | `pairplot(df, *, hue=None, columns=None, sample=None, random_state=0, ...)` | Scatter-matrix of numeric columns; returns the seaborn grid; auto-samples large data. |
 | `donut(data, column=None, *, top=8, center_text=None, explode=None, ...)` | Ring chart of category shares (infographic extra; trades proportion-accuracy for looks). |
-| `set_theme(*, style_preset="default"/"infographic", palette=..., accent=..., background=..., linewidth=..., ...)` | Switch the whole look (checklist default vs. vivid infographic) and tune individual knobs. |
+| `set_theme(*, style_preset="default"/"infographic"/"neon", palette=..., accent=..., background=..., linewidth=..., ...)` | Switch the whole look (checklist default, vivid infographic, or dark-navy neon dashboard) and tune individual knobs. |
 
 Every plotting function (except `set_theme`) accepts the keyword-only
 checklist hooks `title=`, `subtitle=`, `source=` and, where it composes,

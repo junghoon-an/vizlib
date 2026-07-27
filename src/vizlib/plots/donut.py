@@ -8,7 +8,7 @@ import pandas as pd
 from ..core import _require_series
 from .chrome import _finalize_layout, _new_ax, _source, _titles
 from .data import _resolve_column
-from .marks import _luminance, _stack_colors
+from .marks import _luminance, _stack_colors, _surface_color
 from .theme import _THEME
 
 
@@ -68,10 +68,11 @@ def donut(
 
     ax = _new_ax(ax)
     kwargs.setdefault("startangle", 90)
+    surface = _surface_color()  # ring separators match the (light/dark) background
     wedges, _texts, autotexts = ax.pie(
         values, colors=colors, explode=explode_arr, counterclock=False,
         autopct=lambda p: f"{p:.0f}%", pctdistance=0.78,
-        wedgeprops=dict(width=0.42, edgecolor="white", linewidth=2),
+        wedgeprops=dict(width=0.42, edgecolor=surface, linewidth=2),
         textprops=dict(color=_THEME["text_color"]), **kwargs,
     )
     for autotext, wedge in zip(autotexts, wedges):
@@ -88,7 +89,7 @@ def donut(
             ha="left" if xr >= 0 else "right", va="center",
             fontsize=_THEME["font_sizes"]["tick"], color=_THEME["text_color"],
             arrowprops=dict(arrowstyle="-", color=_THEME["muted"], lw=0.8),
-            bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="none"),
+            bbox=dict(boxstyle="round,pad=0.2", fc=surface, ec="none"),
         )
     if center_text:
         ax.text(0, 0, center_text, ha="center", va="center", fontweight="bold",
