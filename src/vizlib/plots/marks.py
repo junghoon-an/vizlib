@@ -14,7 +14,7 @@ import seaborn as sns
 from matplotlib.colors import to_rgb
 from matplotlib.patches import Patch, Polygon
 
-from .theme import _THEME, _TRAFFIC_LIGHT
+from .theme import _THEME, _TRAFFIC_LIGHT, _surface_color
 
 
 def _base_color():
@@ -102,12 +102,18 @@ def _swatch_legend(ax, labels, colors, *, title=None, loc="best"):
     """Draw a frameless legend as a row of colored swatches with labels."""
     handles = [Patch(facecolor=c, edgecolor="none", label=str(lab))
                for lab, c in zip(labels, colors)]
-    return ax.legend(
+    legend = ax.legend(
         handles=handles, frameon=False, loc=loc, title=title,
         fontsize=_THEME["font_sizes"]["tick"],
         title_fontsize=_THEME["font_sizes"]["label"],
         handlelength=1.1, handleheight=1.1, borderaxespad=0.4,
     )
+    tc = _THEME["text_color"]  # keep labels legible on a dark background
+    for text in legend.get_texts():
+        text.set_color(tc)
+    if legend.get_title() is not None:
+        legend.get_title().set_color(tc)
+    return legend
 
 
 def _to_num(seq):
@@ -182,6 +188,7 @@ def _draw_callouts(ax, annotations, points_x=None, points_y=None) -> None:
             str(text), xy=(xv, yv), xytext=(0, 34), textcoords="offset points",
             ha="center", va="bottom", fontsize=_THEME["font_sizes"]["tick"],
             color=tc, zorder=6,
-            bbox=dict(boxstyle="round,pad=0.35", fc="white", ec=accent, lw=1.2),
+            bbox=dict(boxstyle="round,pad=0.35", fc=_surface_color(),
+                      ec=accent, lw=1.2),
             arrowprops=dict(arrowstyle="-", color=muted, lw=1.0),
         )

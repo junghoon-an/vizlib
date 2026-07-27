@@ -53,6 +53,7 @@ from .theme import set_theme
 from .margins import _HBAR_LEFT_CAP, _HBAR_RIGHT_CAP, _text_width_px  # noqa: F401
 from .theme import (  # noqa: F401
     _DEFAULTS,
+    _NEON_PALETTE,
     _PRESETS,
     _THEME,
     _TRAFFIC_LIGHT,
