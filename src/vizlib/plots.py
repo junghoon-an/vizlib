@@ -208,6 +208,7 @@ def bar(
     precision: int = 0,
     as_percent: bool = False,
     fmt: str | None = None,
+    label_padding: int = 5,
     title: str | None = None,
     subtitle: str | None = None,
     source: str | None = None,
@@ -224,10 +225,11 @@ def bar(
     label or list of labels) paints the chosen bars in the accent color and
     the rest muted. Set ``as_percent=True`` to plot each category's share of
     the total; ``precision`` sets the decimals and ``fmt`` overrides the label
-    format string. Under the ``infographic`` preset the labels are large, bold
-    and placed on the bars. Returns the ``Axes``; the input is never mutated.
-    The default ``title`` is a neutral placeholder — override it with your
-    finding.
+    format string. Labels always sit a fixed ``label_padding`` (points) past
+    each bar's tip — clear of the y-axis category labels — and the infographic
+    preset only makes them larger and bold. Returns the ``Axes``; the input is
+    never mutated. The default ``title`` is a neutral placeholder — override it
+    with your finding.
     """
     series = _resolve_column(data, column)
     ordered = isinstance(series.dtype, pd.CategoricalDtype) and series.dtype.ordered
@@ -248,20 +250,22 @@ def bar(
         total = counts.sum()
         counts = counts / total * 100 if total else counts * 0.0
 
-    ax = _new_ax(ax)
     plot = counts.iloc[::-1]  # biggest on top for a horizontal bar
+    ax = _new_ax(ax, min_height=0.4 * len(plot) + 1)  # tall enough per row
     kwargs.setdefault("color", _bar_colors(plot.index, highlight))
     if _THEME.get("linewidth"):
         kwargs.setdefault("edgecolor", "white")
     container = ax.barh([str(i) for i in plot.index], plot.to_numpy(), **kwargs)
     biggest = float(plot.max())
-    ax.set_xlim(0, biggest * 1.18 if biggest else 1)  # zero-based, room for labels
+    # zero-based, with right headroom so edge labels never clip
+    ax.set_xlim(0, biggest * 1.18 if biggest else 1)
 
     name = series.name if series.name is not None else "value"
     grid_axis, xlabel = "x", ("% of total" if as_percent else "count")
     if value_labels:
         default_fmt = f"%.{precision}f%%" if as_percent else f"%.{precision}f"
-        _draw_value_labels(ax, container, fmt=fmt or default_fmt)
+        _draw_value_labels(ax, container, fmt=fmt or default_fmt,
+                           padding=label_padding)
         ax.xaxis.set_visible(False)                 # value axis is redundant now
         ax.spines["bottom"].set_visible(False)
         grid_axis, xlabel = None, None
@@ -602,6 +606,7 @@ def missing_bar(
     value_labels: bool = True,
     precision: int = 1,
     fmt: str | None = None,
+    label_padding: int = 5,
     title: str | None = None,
     subtitle: str | None = None,
     source: str | None = None,
@@ -614,8 +619,10 @@ def missing_bar(
     full 0–100 % so magnitudes read honestly; by default each bar is labelled
     directly and the value axis/tick marks are hidden. ``highlight`` accents
     the chosen column(s); ``precision`` sets the percent decimals and ``fmt``
-    overrides the label format. Under the ``infographic`` preset labels are
-    large and bold. Returns the ``Axes``; the input is untouched.
+    overrides the label format. Labels sit a fixed ``label_padding`` (points)
+    past each bar's tip — clear of the column names on the left — and the
+    infographic preset only makes them larger and bold. Returns the ``Axes``;
+    the input is untouched.
     """
     _require_dataframe(df)
     if df.shape[1] == 0:
@@ -624,21 +631,24 @@ def missing_bar(
     pct = (df.isna().sum() / n * 100) if n else df.isna().sum() * 0.0
     pct = pct.sort_values(ascending=False)
 
-    ax = _new_ax(ax)
     plot = pct.iloc[::-1]  # biggest on top
+    ax = _new_ax(ax, min_height=0.4 * len(plot) + 1)  # tall enough per row
     kwargs.setdefault("color", _bar_colors(plot.index, highlight))
     if _THEME.get("linewidth"):
         kwargs.setdefault("edgecolor", "white")
     container = ax.barh([str(i) for i in plot.index], plot.to_numpy(), **kwargs)
-    ax.set_xlim(0, 100)
 
     grid_axis, xlabel = "x", "% missing"
     if value_labels:
         labels = [(fmt % v) if fmt else f"{v:.{precision}f}%" for v in plot.to_numpy()]
-        _draw_value_labels(ax, container, labels=labels)
+        _draw_value_labels(ax, container, labels=labels, padding=label_padding)
+        # right headroom so edge labels clear the axis; scale hidden anyway
+        ax.set_xlim(0, max(float(plot.max()) * 1.12, 1.0))
         ax.xaxis.set_visible(False)
         ax.spines["bottom"].set_visible(False)
         grid_axis, xlabel = None, None
+    else:
+        ax.set_xlim(0, 100)  # honest 0–100 scale when the axis is shown
     ax.tick_params(length=0)
     if title is None:
         title = "Share of missing values by column"
@@ -828,10 +838,17 @@ def donut(
 
 # --- internal helpers -------------------------------------------------------
 
-def _new_ax(ax: "Axes | None") -> "Axes":
-    """Return ``ax`` or a fresh one sized from the shared theme."""
+def _new_ax(ax: "Axes | None", *, min_height: float | None = None) -> "Axes":
+    """Return ``ax`` or a fresh one sized from the shared theme.
+
+    ``min_height`` grows a freshly-created figure so horizontal-bar rows stay
+    tall enough for their labels; it is ignored when the caller passes ``ax``.
+    """
     if ax is None:
-        _, ax = plt.subplots(figsize=_THEME["figsize"], dpi=_THEME["dpi"])
+        width, height = _THEME["figsize"]
+        if min_height is not None:
+            height = max(height, min_height)
+        _, ax = plt.subplots(figsize=(width, height), dpi=_THEME["dpi"])
     return ax
 
 
@@ -872,24 +889,28 @@ def _luminance(rgba) -> float:
     return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
 
-def _draw_value_labels(ax, container, *, labels=None, fmt="%.0f") -> None:
-    """Label bars directly, styled for the active preset.
+def _draw_value_labels(ax, container, *, labels=None, fmt="%.0f", padding=5) -> None:
+    """Label horizontal bars at a constant offset past each bar's tip.
 
-    Default: dark labels just past each bar end. Infographic: large bold
-    labels centred on the bar, white on dark fills and dark on light ones.
+    Preset-agnostic placement: always ``label_type="edge"`` with a fixed
+    ``padding`` (in points), so every label sits the same distance from its
+    bar tip and clear of the left y-axis column labels — never over them. The
+    infographic preset only changes the weight and size (dark high-contrast
+    text either way). The enlarged size is trimmed when there are many bars so
+    adjacent-row labels can't collide.
     """
     bold = _THEME.get("bold_labels")
-    fs = _THEME["font_sizes"]["label"] * (1.45 if bold else 1.0)
+    n_bars = len(container.patches)
+    factor = 1.45 if bold else 1.0
+    if n_bars > 15:                       # many rows -> keep labels from touching
+        factor = min(factor, 1.1)
+    fs = _THEME["font_sizes"]["label"] * factor
     label_kw = {"labels": labels} if labels is not None else {"fmt": fmt}
-    if bold:
-        texts = ax.bar_label(container, label_type="center", fontsize=fs,
-                             fontweight="bold", **label_kw)
-        for text, patch in zip(texts, container.patches):
-            dark = _luminance(patch.get_facecolor()) < 0.55
-            text.set_color("white" if dark else _THEME["text_color"])
-    else:
-        ax.bar_label(container, padding=3, fontsize=fs,
-                     color=_THEME["text_color"], **label_kw)
+    ax.bar_label(
+        container, label_type="edge", padding=padding, fontsize=fs,
+        fontweight=("bold" if bold else "normal"),
+        color=_THEME["text_color"], **label_kw,
+    )
 
 
 def _swatch_legend(ax, labels, colors, *, title=None, loc="best"):

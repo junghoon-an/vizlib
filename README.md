@@ -293,14 +293,14 @@ pandas, so `import vizlib` stays fast.
 
 | Function | What it does |
 | --- | --- |
-| `bar(data, column=None, *, top=15, sort=True, highlight=None, value_labels=True, precision=0, ...)` | Value-counts bar chart: top-N + "Other", sorted, zero baseline, bars labelled directly. |
+| `bar(data, column=None, *, top=15, sort=True, highlight=None, value_labels=True, precision=0, label_padding=5, ...)` | Value-counts bar chart: top-N + "Other", sorted, zero baseline, bars labelled directly past the tip (`label_padding` points). |
 | `hist(series, *, bins="auto", kde=False, ...)` | Histogram of a numeric Series, optional KDE; zero-based count axis. |
 | `distribution(series, *, ...)` | Histogram + KDE + rug for a quick distribution read. |
 | `box(df, column=None, *, by=None, ...)` | Boxplot for spread/outliers; groups ordered by median. |
 | `scatter(df, x, y, *, hue=None, reg=False, sample=None, random_state=0, annotations=None, ...)` | Relationship between two numeric (or coercible) columns; frameless legend for `hue`; leader-line callouts; auto-samples large data. |
 | `line(df, x, y, *, hue=None, area=False, stack=False, annotations=None, ...)` | Line plot for ordered/time-series data; datetime axes, gradient/stacked area fills, leader-line callouts. |
 | `correlation_heatmap(df, *, method="pearson", annot=True, ...)` | Masked, annotated correlation matrix on a fixed `[-1, 1]` diverging scale. |
-| `missing_bar(df, *, highlight=None, value_labels=True, precision=1, ...)` | Per-column percentage of missing values, largest first, labelled directly. |
+| `missing_bar(df, *, highlight=None, value_labels=True, precision=1, label_padding=5, ...)` | Per-column percentage of missing values, largest first, labelled a fixed distance past each bar tip. |
 | `missing_matrix(df, *, ...)` | Nullity matrix (dark cells mark missing values). |
 | `pairplot(df, *, hue=None, columns=None, sample=None, random_state=0, ...)` | Scatter-matrix of numeric columns; returns the seaborn grid; auto-samples large data. |
 | `donut(data, column=None, *, top=8, center_text=None, explode=None, ...)` | Ring chart of category shares (infographic extra; trades proportion-accuracy for looks). |
