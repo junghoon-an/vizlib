@@ -10,14 +10,9 @@ Import the public functions straight from the package::
     print(vizlib.value_counts_bar(df["category"]))
 """
 
-from .core import (
-    histogram,
-    load,
-    missing_values,
-    numeric_summary,
-    summarize,
-    value_counts_bar,
-)
+from .ascii import histogram, value_counts_bar
+from .eda import missing_values, numeric_summary, summarize
+from .loading import load
 
 __version__ = "0.7.1"
 

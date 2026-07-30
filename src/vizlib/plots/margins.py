@@ -1,19 +1,14 @@
 """Explicit worst-case margin reservation for horizontal-bar charts.
 
-Constrained layout only ever measures the *active* artists, so it cannot
-reserve room for an inactive preset's larger fonts. These helpers instead
-measure the widest column name and value label under *every* preset's fonts
-(via :class:`~matplotlib.textpath.TextPath`, independent of the active
-render) and reserve the maximum with ``subplots_adjust`` — so the axes never
-move on a style switch and the names can never overlap the bars.
+Measures the widest column name and value label under *every* preset's fonts
+(see :mod:`vizlib.plots.measure`) and reserves the maximum with
+``subplots_adjust`` — so the axes never move on a style switch and the names
+can never overlap the bars.
 """
 
 from __future__ import annotations
 
-from matplotlib.font_manager import FontProperties
-from matplotlib.textpath import TextPath
-
-from .theme import _PRESETS, _THEME, _resolved_theme
+from .measure import _hbar_font_regimes, _widest_px
 
 # Gaps are in points (font-size-independent); caps bound how much of the figure
 # the names / value labels may claim before we ellipsize instead.
@@ -23,59 +18,11 @@ _HBAR_LEFT_CAP = 0.40       # names never claim more than this fraction of width
 _HBAR_RIGHT_CAP = 0.32      # nor value labels this much on the right
 
 
-def _text_width_px(s: str, *, size: float, weight, dpi: float) -> float:
-    """Rendered width of ``s`` in pixels at a given font size/weight.
-
-    Measured off a :class:`~matplotlib.textpath.TextPath`, so no renderer or
-    active-figure state is touched — the width is independent of whichever
-    style is currently active. That is what lets us reserve space for an
-    *inactive* preset's larger fonts without disturbing the active render.
-    """
-    if not s:
-        return 0.0
-    tp = TextPath((0, 0), str(s), prop=FontProperties(size=size, weight=weight))
-    return tp.get_extents().width * dpi / 72.0
-
-
-def _label_factor(bold: bool, n_bars: int) -> float:
-    """Value-label size multiplier — mirror of the logic in _draw_value_labels."""
-    factor = 1.45 if bold else 1.0
-    if n_bars > 15:
-        factor = min(factor, 1.1)
-    return factor
-
-
-def _hbar_font_regimes(n_bars: int):
-    """``(tick_regimes, label_regimes)`` across every preset and the active theme.
-
-    Each regime is a ``(size, weight)`` pair. Enumerating *all* presets — not
-    just the active ``_THEME`` — is the whole point: the reserved margin is a
-    worst-case superset, so the axes stay put when the user switches styles.
-    """
-    themes = [_resolved_theme(name) for name in _PRESETS]
-    themes.append(_THEME)  # also fit any custom overrides on the active theme
-    tick, label = set(), set()
-    for th in themes:
-        sizes = th["font_sizes"]
-        tick.add((sizes["tick"], "normal"))  # tick labels are never bold
-        bold = bool(th.get("bold_labels"))
-        label.add((sizes["label"] * _label_factor(bold, n_bars),
-                   "bold" if bold else "normal"))
-    return sorted(tick), sorted(label)
-
-
-def _widest_px(labels, regimes, dpi) -> float:
-    """Max rendered width (px) of any label over any font regime."""
-    return max((_text_width_px(s, size=sz, weight=w, dpi=dpi)
-                for s in labels for sz, w in regimes), default=0.0)
-
-
 def _fit_ytick_labels(ax, labels, avail_px, tick_regimes, dpi, max_label_chars):
     """Ellipsize y labels so the widest fits ``avail_px`` at the largest font.
 
     Width grows monotonically with the character budget, so the largest budget
-    that still fits is found with a binary search (a linear scan would rebuild
-    a TextPath for every dropped character of a very long name).
+    that still fits is found with a binary search.
     """
     max_size = max(sz for sz, _ in tick_regimes)
     longest = max((len(s) for s in labels), default=0)
@@ -101,13 +48,10 @@ def _fit_ytick_labels(ax, labels, avail_px, tick_regimes, dpi, max_label_chars):
 def _reserve_hbar_margins(ax, value_labels, *, n_bars, max_label_chars=None) -> None:
     """Reserve worst-case left margin (names) and right headroom (value labels).
 
-    Only manages vizlib-owned horizontal-bar figures; a caller-supplied ``ax``
-    is left untouched (honouring ``ax=``). Widths are measured against the
-    largest font across *all* presets, so the axes position is identical no
-    matter which style is active — the bars never shift on a theme switch and
-    can never be overlapped by the y-axis column names. A pathologically long
-    name that would exceed :data:`_HBAR_LEFT_CAP` is ellipsized rather than
-    crushing the plot.
+    Only manages vizlib-owned figures; a caller-supplied ``ax`` is left
+    untouched. Widths are measured against the largest font across *all*
+    presets, so the axes position is identical no matter which style is active.
+    A name that would exceed :data:`_HBAR_LEFT_CAP` is ellipsized instead.
     """
     fig = ax.figure
     if not getattr(fig, "_vizlib_owned", False):
