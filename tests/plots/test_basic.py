@@ -74,6 +74,21 @@ def test_scatter_missing_column_raises(df):
         plots.scatter(df, "age", "nope")
 
 
+def test_scatter_reg_draws_line_without_confidence_band(df):
+    """reg=True adds a trend line but no shaded confidence band (ci=None).
+
+    The regplot band renders as a filled ``PolyCollection``; the scatter
+    points are ``PathCollection``s and the trend itself is a ``Line2D``.
+    """
+    from matplotlib.collections import PolyCollection
+
+    before = df.copy()
+    ax = plots.scatter(df, "age", "height", reg=True)
+    assert not [c for c in ax.collections if isinstance(c, PolyCollection)]
+    assert ax.lines  # the regression trend line is still drawn
+    pd.testing.assert_frame_equal(df, before)
+
+
 def test_line_returns_axes(df):
     _assert_axes(plots.line(df, "age", "height"))
     _assert_axes(plots.line(df, "age", "height", hue="group"))
