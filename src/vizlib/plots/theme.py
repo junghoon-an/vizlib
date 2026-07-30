@@ -48,11 +48,7 @@ def set_theme(
     grid_color: str | None = None,
     background: str | None = None,
     linewidth: float | None = None,
-    title_size: float | None = None,
-    subtitle_size: float | None = None,
-    label_size: float | None = None,
-    tick_size: float | None = None,
-    source_size: float | None = None,
+    font_sizes: dict | None = None,
 ) -> None:
     """Configure the look shared by every plot.
 
@@ -64,8 +60,10 @@ def set_theme(
       palette and light text. **Not colorblind-safe.**
 
     Setting a preset resets the theme to that preset; any other argument you
-    pass is then applied on top, so every knob stays overridable. Called with
-    no ``style_preset`` it just updates the values you provide. Returns ``None``.
+    pass is then applied on top, so every knob stays overridable. ``font_sizes``
+    is a partial mapping of ``{"title"|"subtitle"|"label"|"tick"|"source":
+    points}`` merged over the active sizes. Called with no ``style_preset`` it
+    just updates the values you provide. Returns ``None``.
     """
     if style_preset is not None:
         if style_preset not in _PRESETS:
@@ -87,13 +85,8 @@ def set_theme(
     for key, value in scalar.items():
         if value is not None:
             _THEME[key] = value
-    sizes = {
-        "title": title_size, "subtitle": subtitle_size, "label": label_size,
-        "tick": tick_size, "source": source_size,
-    }
-    for key, value in sizes.items():
-        if value is not None:
-            _THEME["font_sizes"][key] = value
+    if font_sizes:
+        _THEME["font_sizes"].update(font_sizes)
     sns.set_theme(
         context=_THEME["context"], style=_THEME["style"], palette=_THEME["palette"]
     )

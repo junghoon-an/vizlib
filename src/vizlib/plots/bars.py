@@ -10,6 +10,7 @@ import pandas as pd
 
 from .data import _resolve_column
 from .hbar import _hbar
+from .options import Captions, ValueLabels
 
 
 def bar(
@@ -19,11 +20,8 @@ def bar(
     top: int = 15,
     sort: bool = True,
     highlight=None,
-    value_labels: bool = True,
-    precision: int = 0,
     as_percent: bool = False,
-    fmt: str | None = None,
-    label_padding: int = 5,
+    labels: ValueLabels | None = None,
     max_label_chars: int | None = None,
     title: str | None = None,
     subtitle: str | None = None,
@@ -38,11 +36,12 @@ def bar(
     ``sort=False``, and anchors the count axis at zero. By default each bar is
     labelled directly and the redundant value axis is hidden. ``highlight`` (a
     label or list) paints the chosen bars in the accent colour, the rest muted.
-    Set ``as_percent=True`` to plot each category's share; ``precision`` sets
-    the decimals and ``fmt`` overrides the label format. ``max_label_chars``
-    optionally ellipsizes very long names (off by default — the layout reserves
-    room for them). Returns the ``Axes``; the input is never mutated.
+    Set ``as_percent=True`` to plot each category's share. Pass a
+    :class:`~vizlib.plots.ValueLabels` as ``labels`` to tune the on-data labels
+    (show/precision/fmt/padding). ``max_label_chars`` optionally ellipsizes very
+    long names. Returns the ``Axes``; the input is never mutated.
     """
+    labels = labels or ValueLabels()
     series = _resolve_column(data, column)
     ordered = isinstance(series.dtype, pd.CategoricalDtype) and series.dtype.ordered
     counts = series.value_counts(dropna=True)
@@ -64,15 +63,13 @@ def bar(
     plot = counts.iloc[::-1]  # biggest on top for a horizontal bar
     biggest = float(plot.max())
     name = series.name if series.name is not None else "value"
-    value_strings = None
-    if value_labels:
-        used_fmt = fmt or (f"%.{precision}f%%" if as_percent else f"%.{precision}f")
-        value_strings = [used_fmt % v for v in plot.to_numpy()]
+    value_strings = (labels.format(plot.to_numpy(), percent=as_percent)
+                     if labels.show else None)
     return _hbar(
         plot, highlight=highlight, value_strings=value_strings,
         xlim=(0, biggest * 1.18 if biggest else 1),
         xlabel="% of total" if as_percent else "count", ylabel=str(name),
-        title=title if title is not None else f"Record count by {name}",
-        subtitle=subtitle, source=source, label_padding=label_padding,
-        max_label_chars=max_label_chars, ax=ax, **kwargs,
+        captions=Captions(title if title is not None else f"Record count by {name}",
+                          subtitle, source),
+        labels=labels, max_label_chars=max_label_chars, ax=ax, **kwargs,
     )

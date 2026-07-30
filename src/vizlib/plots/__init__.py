@@ -47,6 +47,7 @@ from .distribution import distribution, hist
 from .heatmap import correlation_heatmap, missing_matrix
 from .line import line
 from .missing_bar import missing_bar
+from .options import Captions, ValueLabels
 from .pairplot import pairplot
 from .scatter import scatter
 from .theme import set_theme
@@ -77,4 +78,6 @@ __all__ = [
     "missing_bar",
     "missing_matrix",
     "pairplot",
+    "Captions",
+    "ValueLabels",
 ]

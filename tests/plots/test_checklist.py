@@ -30,7 +30,7 @@ def test_missing_bar_labels_each_bar(df):
 
 
 def test_value_labels_false_keeps_axis_and_no_labels(df):
-    ax = plots.bar(df["city"], value_labels=False)
+    ax = plots.bar(df["city"], labels=plots.ValueLabels(show=False))
     assert ax.xaxis.get_visible()
     assert len(ax.texts) == 0
 
@@ -45,7 +45,7 @@ def test_highlight_uses_accent_and_muted(df):
 
 
 def test_bar_has_no_tick_marks(df):
-    ax = plots.bar(df["city"], value_labels=False)
+    ax = plots.bar(df["city"], labels=plots.ValueLabels(show=False))
     ticklines = ax.get_xticklines() + ax.get_yticklines()
     assert ticklines and all(t.get_markersize() == 0 for t in ticklines)
 
@@ -67,7 +67,8 @@ def test_box_by_orders_unordered_groups_by_median():
 
 def test_new_params_are_keyword_only():
     sig = inspect.signature(plots.bar)
-    for name in ("highlight", "value_labels", "precision", "title", "subtitle", "source"):
+    for name in ("highlight", "labels", "as_percent", "max_label_chars",
+                 "title", "subtitle", "source"):
         assert sig.parameters[name].kind is inspect.Parameter.KEYWORD_ONLY
     # existing positional call (data, column) still works unchanged
     _assert_axes(plots.bar(pd.Series(["a", "a", "b"])))

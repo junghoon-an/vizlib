@@ -15,6 +15,7 @@ from .axes import _rotate_xticklabels
 from .chrome import _finish, _new_ax
 from .colors import _base_color
 from .data import _require_columns
+from .options import Captions
 from .theme import _THEME
 
 
@@ -78,7 +79,7 @@ def line(
     _draw_callouts(ax, annotations, sub[x].tolist(), sub[y].tolist())
     if title is None:
         title = f"{y} over {x}"
-    ax = _finish(ax, title=title, subtitle=subtitle, source=source,
+    ax = _finish(ax, Captions(title, subtitle, source),
                  xlabel=str(x), ylabel=str(y), grid_axis="both")
     _rotate_xticklabels(ax)
     return ax

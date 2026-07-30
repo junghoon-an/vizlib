@@ -11,6 +11,7 @@ from .axes import _rotate_xticklabels
 from .chrome import _finish, _new_ax
 from .colors import _base_color
 from .data import _numeric_values
+from .options import Captions
 
 
 def box(
@@ -61,8 +62,8 @@ def box(
         default_title, xlabel, ylabel = f"{column} across {by} groups", str(by), str(column)
         rotate = True
 
-    ax = _finish(ax, title=title or default_title, subtitle=subtitle,
-                 source=source, xlabel=xlabel, ylabel=ylabel, grid_axis="y")
+    ax = _finish(ax, Captions(title or default_title, subtitle, source),
+                 xlabel=xlabel, ylabel=ylabel, grid_axis="y")
     if rotate:
         _rotate_xticklabels(ax)
     return ax
