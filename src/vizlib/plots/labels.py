@@ -7,8 +7,8 @@ from matplotlib.patches import Patch
 from .theme import _THEME
 
 
-def _draw_value_labels(ax, container, *, labels=None, fmt="%.0f", padding=5) -> None:
-    """Label horizontal bars at a constant offset past each bar's tip.
+def _draw_value_labels(ax, container, labels, *, padding=5) -> None:
+    """Label horizontal bars with ``labels`` at a constant offset past each tip.
 
     Always ``label_type="edge"`` with a fixed ``padding`` (points), so every
     label sits the same distance from its bar tip and clear of the left column
@@ -19,12 +19,10 @@ def _draw_value_labels(ax, container, *, labels=None, fmt="%.0f", padding=5) -> 
     factor = 1.45 if bold else 1.0
     if len(container.patches) > 15:       # many rows -> keep labels from touching
         factor = min(factor, 1.1)
-    fs = _THEME["font_sizes"]["label"] * factor
-    label_kw = {"labels": labels} if labels is not None else {"fmt": fmt}
     ax.bar_label(
-        container, label_type="edge", padding=padding, fontsize=fs,
-        fontweight=("bold" if bold else "normal"),
-        color=_THEME["text_color"], **label_kw,
+        container, labels=labels, label_type="edge", padding=padding,
+        fontsize=_THEME["font_sizes"]["label"] * factor,
+        fontweight=("bold" if bold else "normal"), color=_THEME["text_color"],
     )
 
 

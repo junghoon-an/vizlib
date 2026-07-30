@@ -11,18 +11,19 @@ from .axes import _rotate_xticklabels
 from .chrome import _new_ax, _source, _titles
 from .colors import _base_color, _luminance
 from .data import _upper_triangle_mask
+from .options import Captions
 from .theme import _THEME
 
 
-def _finish_matrix(ax, *, title, subtitle, source) -> None:
+def _finish_matrix(ax, captions: Captions) -> None:
     """Shared chrome for the heatmaps: no border box, title, ticks, source."""
     for spine in ax.spines.values():
         spine.set_visible(False)
-    _titles(ax, title, subtitle)
+    _titles(ax, captions)
     ax.tick_params(colors=_THEME["text_color"],
                    labelsize=_THEME["font_sizes"]["tick"], length=0)
     _rotate_xticklabels(ax)
-    _source(ax, source)
+    _source(ax, captions)
 
 
 def correlation_heatmap(
@@ -56,7 +57,7 @@ def correlation_heatmap(
                 cbar_kws={"shrink": 0.8, "label": "correlation"}, ax=ax, **kwargs)
     if title is None:
         title = f"Correlation among numeric columns ({method})"
-    _finish_matrix(ax, title=title, subtitle=subtitle, source=source)
+    _finish_matrix(ax, Captions(title, subtitle, source))
     return ax
 
 
@@ -88,5 +89,5 @@ def missing_matrix(
         title = "Missing-value locations across the dataset"
     ax.set_xlabel("column", fontsize=_THEME["font_sizes"]["label"],
                   color=_THEME["text_color"])
-    _finish_matrix(ax, title=title, subtitle=subtitle, source=source)
+    _finish_matrix(ax, Captions(title, subtitle, source))
     return ax

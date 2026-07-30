@@ -8,6 +8,7 @@ import seaborn as sns
 from .chrome import _finish, _new_ax
 from .colors import _base_color
 from .data import _numeric_values
+from .options import Captions
 
 
 def hist(
@@ -35,7 +36,7 @@ def hist(
     name = series.name if series.name is not None else "value"
     if title is None:
         title = f"Distribution of {name}"
-    return _finish(ax, title=title, subtitle=subtitle, source=source,
+    return _finish(ax, Captions(title, subtitle, source),
                    xlabel=str(name), ylabel="count", grid_axis="y")
 
 
@@ -63,5 +64,5 @@ def distribution(
     name = series.name if series.name is not None else "value"
     if title is None:
         title = f"Distribution of {name}"
-    return _finish(ax, title=title, subtitle=subtitle, source=source,
+    return _finish(ax, Captions(title, subtitle, source),
                    xlabel=str(name), ylabel="count", grid_axis="y")
