@@ -77,13 +77,6 @@ def test_callouts_add_annotations(df):
     assert all(a.arrow_patch is not None for a in drawn)
 
 
-def test_donut_renders_center_and_wedges(df):
-    ax = plots.donut(df["city"], center_text="Cities")
-    assert isinstance(ax, Axes)
-    assert len(ax.patches) >= 2  # wedges
-    assert any(t.get_text() == "Cities" for t in ax.texts)  # center caption
-
-
 def test_infographic_ax_honored_and_no_mutation(df):
     import matplotlib.pyplot as plt
 
@@ -93,5 +86,4 @@ def test_infographic_ax_honored_and_no_mutation(df):
     out = plots.bar(df, "city", ax=ax)
     assert out is ax
     plots.line(df, "age", "height", area=True)
-    plots.donut(df["group"])
     pd.testing.assert_frame_equal(df, before)

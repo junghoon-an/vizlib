@@ -42,7 +42,6 @@ except ImportError as exc:  # pragma: no cover - exercised only without the deps
 
 from .bars import bar, missing_bar
 from .distribution import box, distribution, hist
-from .donut import donut
 from .matrix import correlation_heatmap, missing_matrix, pairplot
 from .relational import line, scatter
 from .theme import set_theme
@@ -73,5 +72,4 @@ __all__ = [
     "missing_bar",
     "missing_matrix",
     "pairplot",
-    "donut",
 ]

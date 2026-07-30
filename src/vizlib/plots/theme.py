@@ -89,8 +89,8 @@ def _surface_color():
     """Background for small label boxes / separators.
 
     The active theme's background when one is set (e.g. the dark ``neon``
-    navy), otherwise plain white — so callout boxes, donut separators and the
-    like stay legible on both light and dark themes.
+    navy), otherwise plain white — so callout boxes and the like stay legible
+    on both light and dark themes.
     """
     return _THEME.get("background") or "white"
 
