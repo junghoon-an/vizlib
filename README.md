@@ -126,6 +126,9 @@ look exactly as they do by default.
 Runnable from the repo root against the bundled [`datasets/`](datasets/):
 
 ```python
+import matplotlib
+matplotlib.rcParams["toolbar"] = "None"   # figure windows open without the nav toolbar
+
 import matplotlib.pyplot as plt
 import vizlib
 from vizlib import plots
