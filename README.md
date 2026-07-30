@@ -111,7 +111,6 @@ df = vizlib.load("datasets/er_daily_visits.csv")
 
 plots.set_theme(style_preset="neon")          # or "infographic"
 plots.bar(df, "department")
-plots.donut(df["department"])
 plots.line(df, "date", "admissions", area=True)
 
 plots.set_theme(style_preset="default")       # back to the analytical look
@@ -190,7 +189,6 @@ mutate their input. `load` imports nothing heavier than pandas.
 | `missing_bar(df, *, highlight=None, value_labels=True, precision=1, label_padding=5, max_label_chars=None, ...)` | Per-column % missing, largest first, labelled past each bar tip. |
 | `missing_matrix(df, *, ...)` | Nullity matrix (dark cells mark missing values). |
 | `pairplot(df, *, hue=None, columns=None, sample=None, random_state=0, ...)` | Scatter-matrix of numeric columns; returns the seaborn grid. |
-| `donut(data, column=None, *, top=8, center_text=None, explode=None, ...)` | Ring chart of category shares (presentation extra). |
 | `set_theme(*, style_preset="default"/"infographic"/"neon", palette=..., accent=..., background=..., ...)` | Switch the whole look and tune individual knobs. |
 
 Every plotting function (except `set_theme`) accepts the keyword-only hooks

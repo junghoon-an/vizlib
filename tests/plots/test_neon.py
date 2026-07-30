@@ -34,7 +34,6 @@ def test_neon_restores_to_default():
     lambda df: plots.missing_bar(df),
     lambda df: plots.scatter(df, "age", "height", hue="group"),
     lambda df: plots.line(df, "age", "height", area=True),
-    lambda df: plots.donut(df["city"]),
     lambda df: plots.hist(df["age"]),
 ])
 def test_neon_charts_return_axes_without_mutation(df, make):
@@ -71,12 +70,3 @@ def test_neon_callout_box_matches_dark_surface(df):
                     annotations=[(df["age"].iloc[3], "peak")])
     ann = [c for c in ax.get_children() if isinstance(c, mtext.Annotation)][0]
     assert ann.get_bbox_patch().get_facecolor() == pytest.approx(_navy())
-
-
-def test_neon_donut_separators_match_dark_surface(df):
-    plots.set_theme(style_preset="neon")
-    ax = plots.donut(df["city"])
-    wedges = [p for p in ax.patches]
-    assert wedges and all(
-        w.get_edgecolor() == pytest.approx(_navy()) for w in wedges
-    )
