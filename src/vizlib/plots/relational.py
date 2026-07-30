@@ -43,7 +43,10 @@ def scatter(
     ``x`` and ``y`` are coerced to numeric (currency/thousands/``%`` stripped),
     so numeric-looking string columns just work. Optionally colour points by
     ``hue`` and overlay a single accent-colored regression line with
-    ``reg=True``. Rows missing any plotted value are dropped (never in place).
+    ``reg=True``. The regression line is drawn without a shaded confidence
+    band (``ci=None``): a cleaner trend line, at the cost of no longer showing
+    the fit's uncertainty. Rows missing any plotted value are dropped (never
+    in place).
     Large frames auto-sample for responsiveness; pass ``sample=`` for an
     explicit reproducible subset (``random_state``). ``annotations`` attaches
     leader-line callouts — a list of ``(x, y, text)`` points. When ``hue`` is
@@ -67,7 +70,8 @@ def scatter(
         kwargs.setdefault("color", _base_color())
     sns.scatterplot(data=sub, x=x, y=y, hue=hue, palette=palette, ax=ax, **kwargs)
     if reg:
-        sns.regplot(data=sub, x=x, y=y, ax=ax, scatter=False, color=_THEME["accent"])
+        sns.regplot(data=sub, x=x, y=y, ax=ax, scatter=False, ci=None,
+                    color=_THEME["accent"])
     if hue:
         handles, labels = ax.get_legend_handles_labels()
         if _THEME.get("swatch_legend"):

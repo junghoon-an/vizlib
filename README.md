@@ -136,7 +136,8 @@ from vizlib import plots
 # Distributions & relationships — patient vitals
 df = vizlib.load("datasets/patient_vitals.csv")
 plots.distribution(df["glucose"])
-plots.scatter(df, "bmi", "glucose", hue="risk_group", reg=True)
+subset = df[df["risk_group"].isin(["Healthy", "Diabetic"])]   # drop Prediabetic
+plots.scatter(subset, "bmi", "glucose", hue="risk_group", reg=True)
 
 # Missing-data patterns & ordered groups — patient intake
 df = vizlib.load("datasets/patient_intake.csv")
