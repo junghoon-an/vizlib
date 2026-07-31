@@ -1,12 +1,10 @@
-"""Colour selection: palette picks, per-bar colours and luminance."""
+"""Colour selection: palette picks and per-bar colours."""
 
 from __future__ import annotations
 
 import pandas as pd
 import seaborn as sns
-from matplotlib.colors import to_rgb
 
-from .palettes import _TRAFFIC_LIGHT
 from .theme import _THEME
 
 
@@ -39,19 +37,3 @@ def _bar_colors(index, highlight):
         pal = sns.color_palette(_THEME["palette"], max(len(index), 1))
         return [pal[i % len(pal)] for i in range(len(index))]
     return _base_color()
-
-
-def _luminance(rgba) -> float:
-    """Relative luminance of an RGBA/tuple colour in [0, 1]."""
-    r, g, b = to_rgb(rgba[:3] if len(rgba) >= 3 else rgba)
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b
-
-
-def _stack_colors(cats):
-    """Colours for stacked bands: traffic-light for low/med/high, else palette."""
-    low, med, high = {"low", "l"}, {"medium", "med", "m"}, {"high", "h"}
-    names = [str(c).strip().lower() for c in cats]
-    rank = {**{k: 0 for k in low}, **{k: 1 for k in med}, **{k: 2 for k in high}}
-    if all(n in rank for n in names):
-        return [_TRAFFIC_LIGHT[rank[n]] for n in names]
-    return list(sns.color_palette(_THEME["palette"], len(cats)))

@@ -22,7 +22,7 @@ class Captions:
 
 @dataclass
 class ValueLabels:
-    """How on-data bar labels are formatted (see ``bar``/``missing_bar``)."""
+    """How on-data bar labels are formatted (see ``bar``)."""
 
     show: bool = True
     precision: int = 0

@@ -20,18 +20,11 @@ def test_scatter_on_numeric_string_columns():
     assert isinstance(plots.scatter(df, "a", "b"), Axes)
 
 
-def test_correlation_heatmap_over_coercible_columns():
-    df = pd.DataFrame({"a": ["1", "2", "3", "4"], "b": ["$2", "$4", "$6", "$8"]})
-    assert isinstance(plots.correlation_heatmap(df), Axes)
-
-
 def test_clear_errors_on_degenerate_input():
     with pytest.raises(ValueError):
         vizlib.numeric_summary(pd.DataFrame())  # empty
     with pytest.raises(ValueError):
-        plots.missing_bar(pd.DataFrame())  # no columns
-    with pytest.raises(ValueError):
-        plots.correlation_heatmap(pd.DataFrame({"a": [1, 2, 3]}))  # single numeric
+        plots.bar(pd.Series([], dtype=object))  # no data
     with pytest.raises(ValueError):
         plots.hist(pd.Series([None, None], dtype="float"))  # all-NaN
 
@@ -50,9 +43,7 @@ def test_scatter_sample_is_reproducible():
 def test_load_and_plots_do_not_mutate_dataset():
     er = vizlib.load(_path("er_daily_visits"))
     before = er.copy()
-    plots.line(er, "date", "admissions", hue="department")
     plots.scatter(er, "admissions", "avg_wait_min")
     plots.bar(er, "department")
     plots.box(er, "admissions", by="department")
-    plots.correlation_heatmap(er[["admissions", "staff_on_duty"]])
     pd.testing.assert_frame_equal(er, before)

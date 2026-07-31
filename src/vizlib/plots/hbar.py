@@ -1,9 +1,8 @@
-"""Shared horizontal-bar renderer for ``bar`` and ``missing_bar``.
+"""Shared horizontal-bar renderer for ``bar`` (and any future hbar chart).
 
-The two public charts differ only in how they turn a DataFrame/Series into a
-plotted Series and its value-label strings; everything downstream — colours,
-direct labels, the hidden redundant value axis and the worst-case margin
-reservation — is identical and lives here.
+Everything downstream of the plotted Series — colours, direct labels, the
+hidden redundant value axis and the worst-case margin reservation — lives here
+so the chart functions stay thin data-prep wrappers.
 """
 
 from __future__ import annotations

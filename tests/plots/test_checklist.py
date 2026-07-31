@@ -23,12 +23,6 @@ def test_bar_labels_each_bar_and_hides_value_axis(df):
     assert not ax.xaxis.get_visible()  # redundant value axis hidden
 
 
-def test_missing_bar_labels_each_bar(df):
-    ax = plots.missing_bar(df)
-    assert len(ax.texts) == len(ax.patches)
-    assert not ax.xaxis.get_visible()
-
-
 def test_value_labels_false_keeps_axis_and_no_labels(df):
     ax = plots.bar(df["city"], labels=plots.ValueLabels(show=False))
     assert ax.xaxis.get_visible()
@@ -50,8 +44,8 @@ def test_bar_has_no_tick_marks(df):
     assert ticklines and all(t.get_markersize() == 0 for t in ticklines)
 
 
-def test_line_keeps_tick_marks(df):
-    ax = plots.line(df, "age", "height")
+def test_box_keeps_tick_marks(df):
+    ax = plots.box(df, "age", by="group")
     ticklines = ax.get_xticklines() + ax.get_yticklines()
     assert any(t.get_markersize() > 0 for t in ticklines)
 
