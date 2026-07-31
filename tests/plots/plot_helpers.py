@@ -5,7 +5,6 @@ the sibling test files import from it. The Agg backend is already selected by
 this directory's ``conftest.py``, which pytest imports first.
 """
 
-import numpy as np
 import pandas as pd
 from matplotlib.axes import Axes
 
@@ -16,26 +15,25 @@ def _assert_axes(obj):
     assert isinstance(obj, Axes)
 
 
-def _missing_df(n_cols=6, n_rows=60):
-    rng = np.random.default_rng(0)
-    cols = {}
-    for i in range(n_cols):
-        p_missing = min(0.05 + i * 0.03, 0.6)  # varied but always valid
-        cols[f"col_{i:02d}"] = rng.choice([1.0, np.nan], n_rows,
-                                          p=[1 - p_missing, p_missing])
-    return pd.DataFrame(cols)
+def _many_cat_series(n_cats=20):
+    """A categorical Series with many distinct-count categories for ``bar``.
+
+    ``bar`` draws the same horizontal-bar renderer ``missing_bar`` used, so
+    these Series drive the shared layout/margin logic.
+    """
+    data = []
+    for i in range(n_cats):
+        data += [f"cat_{i:02d}"] * (i + 1)  # distinct counts -> bars of varied length
+    return pd.Series(data)
 
 
-def _long_name_df(n_cols=7, n_rows=80):
-    """Long column names + short bars — the case that used to overflow."""
-    rng = np.random.default_rng(1)
-    cols = {}
-    for i in range(n_cols):
-        name = f"a_really_long_descriptive_column_name_number_{i:02d}"
-        col = rng.choice([1.0, np.nan], n_rows,
-                         p=[1 - min(0.03 + i * 0.02, 0.5), min(0.03 + i * 0.02, 0.5)])
-        cols[name] = col
-    return pd.DataFrame(cols)
+def _long_name_series(n_cats=7):
+    """Long category names — the case that used to overflow the left margin."""
+    data = []
+    for i in range(n_cats):
+        name = f"a_really_long_descriptive_category_name_number_{i:02d}"
+        data += [name] * (i + 2)
+    return pd.Series(data)
 
 
 def _label_gaps(ax):

@@ -2,23 +2,23 @@
 
 The left margin and right value-label headroom are reserved for the largest
 label footprint across *all* presets, so the axes position is identical no
-matter which style is active — and never overlapped by the column names.
+matter which style is active — and never overlapped by the category names.
+``bar`` drives the shared horizontal-bar renderer.
 """
 
-import numpy as np
 import pandas as pd
 import pytest
 
-from plot_helpers import _long_name_df, _widest_ytick_px_under_infographic
+from plot_helpers import _long_name_series, _widest_ytick_px_under_infographic
 
 from vizlib import plots
 
 
 def test_margin_reserved_for_largest_regime():
     """With the *smaller* default style active, the reserved left region
-    already fits the *larger* infographic column names."""
+    already fits the *larger* infographic category names."""
     plots.set_theme(style_preset="default")
-    ax = plots.missing_bar(_long_name_df())
+    ax = plots.bar(_long_name_series())
     fig = ax.figure
     fig.canvas.draw()
     reserved_px = ax.get_position().x0 * fig.get_figwidth() * fig.dpi
@@ -27,22 +27,22 @@ def test_margin_reserved_for_largest_regime():
 
 
 def test_axes_position_stable_across_styles():
-    df = _long_name_df()
+    s = _long_name_series()
     plots.set_theme(style_preset="default")
-    x0_default = plots.missing_bar(df).get_position().x0
+    x0_default = plots.bar(s).get_position().x0
     plots.set_theme(style_preset="infographic")
-    x0_info = plots.missing_bar(df).get_position().x0
+    x0_info = plots.bar(s).get_position().x0
     assert x0_default == pytest.approx(x0_info, abs=1e-6)
 
 
 def test_switch_style_position_and_overlap_stable():
     """Infographic → plot → measure, then default → plot → measure: both the
     axes position and the no-overlap guarantee hold in one test."""
-    df = _long_name_df()
+    s = _long_name_series()
     positions = []
     for preset in ("infographic", "default"):
         plots.set_theme(style_preset=preset)
-        ax = plots.missing_bar(df)
+        ax = plots.bar(s)
         ax.figure.canvas.draw()
         positions.append(ax.get_position().x0)
         left = ax.get_window_extent().x0
@@ -55,11 +55,8 @@ def test_guardrail_caps_margin_and_ellipsizes():
     """A pathologically long name hits the cap and ellipsizes instead of
     crushing the plotting area to nothing."""
     plots.set_theme(style_preset="infographic")
-    df = pd.DataFrame({
-        "z" * 200: np.r_[np.nan, np.ones(9)],
-        "short": np.r_[np.nan, np.nan, np.ones(8)],
-    })
-    ax = plots.missing_bar(df)
+    s = pd.Series(["z" * 200] * 9 + ["short"] * 8)
+    ax = plots.bar(s)
     ax.figure.canvas.draw()
     x0 = ax.get_position().x0
     assert x0 <= plots._HBAR_LEFT_CAP + 1e-6           # margin capped

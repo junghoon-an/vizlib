@@ -1,6 +1,6 @@
-"""Contract tests for the categorical and distribution charts.
+"""Contract tests for ``bar``, ``hist`` and ``box``.
 
-Every plot returns an Axes and never mutates its input. Relational, matrix and
+Every plot returns an Axes and never mutates its input. ``scatter`` and the
 cross-cutting contract tests live in ``test_charts.py``.
 """
 
@@ -50,10 +50,6 @@ def test_hist_returns_axes(df):
 def test_hist_raises_on_non_numeric():
     with pytest.raises(ValueError):
         plots.hist(pd.Series(["x", "y"]))
-
-
-def test_distribution_returns_axes(df):
-    _assert_axes(plots.distribution(df["age"]))
 
 
 def test_box_variants(df):

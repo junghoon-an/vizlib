@@ -1,18 +1,16 @@
-"""Numeric-axis helpers, gradient area fills and leader-line callouts."""
+"""Nearest-point numeric mapping and leader-line callouts (used by ``scatter``)."""
 
 from __future__ import annotations
 
 import matplotlib.dates as mdates
 import numpy as np
 import pandas as pd
-from matplotlib.colors import to_rgb
-from matplotlib.patches import Polygon
 
 from .theme import _THEME, _surface_color
 
 
 def _to_num(seq):
-    """Numeric view of a sequence for gradient extents / nearest-point math.
+    """Numeric view of a sequence for nearest-point math.
 
     Datetimes (and date-like strings) map through ``date2num`` so callout
     ``x`` values can be given as strings against a datetime axis.
@@ -24,29 +22,6 @@ def _to_num(seq):
     if num.notna().any():
         return num.to_numpy(dtype=float)
     return mdates.date2num(pd.to_datetime(arr, errors="coerce").to_numpy())
-
-
-def _gradient_fill(ax, xnum, y, color, *, baseline=0.0, alpha=0.85) -> None:
-    """Fill under a curve with a vertical gradient from ``color`` to transparent.
-
-    Builds a gradient image and clips it to the polygon between the line and
-    ``baseline`` — mirrors the reference's gradient area panels.
-    """
-    xnum = np.asarray(xnum, dtype=float)
-    y = np.asarray(y, dtype=float)
-    if xnum.size == 0:
-        return
-    ramp = np.empty((256, 1, 4))
-    ramp[:, :, :3] = to_rgb(color)
-    ramp[:, :, 3] = np.linspace(0.0, alpha, 256)[:, None]  # transparent -> solid
-    xmin, xmax = float(xnum.min()), float(xnum.max())
-    ymin, ymax = float(min(baseline, y.min())), float(max(baseline, y.max()))
-    image = ax.imshow(ramp, aspect="auto", origin="lower",
-                      extent=[xmin, xmax, ymin, ymax], zorder=1)
-    verts = [(xmin, baseline), *zip(xnum, y), (xmax, baseline)]
-    clip = Polygon(verts, closed=True, facecolor="none", edgecolor="none")
-    ax.add_patch(clip)
-    image.set_clip_path(clip)
 
 
 def _draw_callouts(ax, annotations, points_x=None, points_y=None) -> None:

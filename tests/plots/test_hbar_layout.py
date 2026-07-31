@@ -1,21 +1,21 @@
 """Auto-reserving layout: enlarged fonts must not spill into the plot.
 
-Layout-engine selection, ``ax=`` honouring and ellipsis live in
-``test_hbar_engine.py``.
+``bar`` drives the shared horizontal-bar renderer. Layout-engine selection,
+``ax=`` honouring and ellipsis live in ``test_hbar_engine.py``.
 """
 
 import pytest
 
-from plot_helpers import _bboxes_overlap, _long_name_df, _missing_df
+from plot_helpers import _bboxes_overlap, _long_name_series, _many_cat_series
 
 from vizlib import plots
 
 
 @pytest.mark.parametrize("preset", ["default", "infographic"])
 def test_ticklabels_stay_in_left_margin(preset):
-    """Column names must not spill rightward into the plotting area."""
+    """Category names must not spill rightward into the plotting area."""
     plots.set_theme(style_preset=preset)
-    ax = plots.missing_bar(_long_name_df())
+    ax = plots.bar(_long_name_series())
     ax.figure.canvas.draw()
     left = ax.get_window_extent().x0
     for label in ax.get_yticklabels():
@@ -25,7 +25,7 @@ def test_ticklabels_stay_in_left_margin(preset):
 @pytest.mark.parametrize("preset", ["default", "infographic"])
 def test_value_labels_do_not_overlap_ticklabels(preset):
     plots.set_theme(style_preset=preset)
-    ax = plots.missing_bar(_long_name_df())
+    ax = plots.bar(_long_name_series())
     ax.figure.canvas.draw()
     ticks = [t.get_window_extent() for t in ax.get_yticklabels()]
     values = [t.get_window_extent() for t in ax.texts]
@@ -36,7 +36,7 @@ def test_value_labels_do_not_overlap_ticklabels(preset):
 @pytest.mark.parametrize("preset", ["default", "infographic"])
 def test_value_labels_do_not_overlap_each_other(preset):
     plots.set_theme(style_preset=preset)
-    ax = plots.missing_bar(_missing_df(n_cols=20))
+    ax = plots.bar(_many_cat_series(n_cats=20), top=100)
     ax.figure.canvas.draw()
     boxes = sorted((t.get_window_extent() for t in ax.texts), key=lambda b: b.y0)
     for lower, upper in zip(boxes, boxes[1:]):
@@ -44,9 +44,9 @@ def test_value_labels_do_not_overlap_each_other(preset):
 
 
 @pytest.mark.parametrize("preset", ["default", "infographic"])
-def test_missing_bar_headroom_no_clipping(preset):
+def test_bar_headroom_no_clipping(preset):
     plots.set_theme(style_preset=preset)
-    ax = plots.missing_bar(_long_name_df())
+    ax = plots.bar(_long_name_series())
     assert ax.get_xlim()[1] > max(p.get_width() for p in ax.patches)
 
 
@@ -62,6 +62,6 @@ def test_layout_is_style_switch_stable():
             assert not any(_bboxes_overlap(vb, tb) for tb in ticks)
 
     plots.set_theme(style_preset="infographic")
-    _no_overlap(plots.missing_bar(_long_name_df()))
+    _no_overlap(plots.bar(_long_name_series()))
     plots.set_theme(style_preset="default")
-    _no_overlap(plots.missing_bar(_long_name_df()))
+    _no_overlap(plots.bar(_long_name_series()))

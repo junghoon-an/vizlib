@@ -43,12 +43,8 @@ except ImportError as exc:  # pragma: no cover - exercised only without the deps
 
 from .bars import bar
 from .box import box
-from .distribution import distribution, hist
-from .heatmap import correlation_heatmap, missing_matrix
-from .line import line
-from .missing_bar import missing_bar
+from .hist import hist
 from .options import Captions, ValueLabels
-from .pairplot import pairplot
 from .scatter import scatter
 from .theme import set_theme
 
@@ -70,14 +66,8 @@ __all__ = [
     "set_theme",
     "bar",
     "hist",
-    "distribution",
     "box",
     "scatter",
-    "line",
-    "correlation_heatmap",
-    "missing_bar",
-    "missing_matrix",
-    "pairplot",
     "Captions",
     "ValueLabels",
 ]
