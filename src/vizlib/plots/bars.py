@@ -1,7 +1,6 @@
 """The ``bar`` value-counts chart.
 
-A thin data-prep wrapper over the shared renderer in :mod:`vizlib.plots.hbar`;
-``missing_bar`` is its sibling in :mod:`vizlib.plots.missing_bar`.
+A thin data-prep wrapper over the shared renderer in :mod:`vizlib.plots.hbar`.
 """
 
 from __future__ import annotations

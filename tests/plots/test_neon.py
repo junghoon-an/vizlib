@@ -31,9 +31,7 @@ def test_neon_restores_to_default():
 
 @pytest.mark.parametrize("make", [
     lambda df: plots.bar(df, "city"),
-    lambda df: plots.missing_bar(df),
     lambda df: plots.scatter(df, "age", "height", hue="group"),
-    lambda df: plots.line(df, "age", "height", area=True),
     lambda df: plots.hist(df["age"]),
 ])
 def test_neon_charts_return_axes_without_mutation(df, make):
@@ -53,9 +51,9 @@ def test_neon_paints_dark_background():
 def test_neon_swatch_legend_text_is_light():
     plots.set_theme(style_preset="neon")
     n = 12
-    sdf = pd.DataFrame({"t": list(range(n)) * 3, "v": [1.0] * (n * 3),
+    sdf = pd.DataFrame({"x": list(range(n)) * 3, "y": [1.0] * (n * 3),
                         "g": ["a"] * n + ["b"] * n + ["c"] * n})
-    ax = plots.line(sdf, "t", "v", hue="g")
+    ax = plots.scatter(sdf, "x", "y", hue="g")
     legend = ax.get_legend()
     light = mcolors.to_rgba(plots._THEME["text_color"])
     assert all(mcolors.to_rgba(t.get_color()) == pytest.approx(light)
@@ -66,7 +64,7 @@ def test_neon_callout_box_matches_dark_surface(df):
     import matplotlib.text as mtext
 
     plots.set_theme(style_preset="neon")
-    ax = plots.line(df, "age", "height",
-                    annotations=[(df["age"].iloc[3], "peak")])
+    ax = plots.scatter(df, "age", "height",
+                       annotations=[(df["age"].iloc[3], df["height"].iloc[3], "peak")])
     ann = [c for c in ax.get_children() if isinstance(c, mtext.Annotation)][0]
     assert ann.get_bbox_patch().get_facecolor() == pytest.approx(_navy())

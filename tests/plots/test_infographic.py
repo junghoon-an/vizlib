@@ -1,6 +1,5 @@
 """The opt-in "infographic" style preset."""
 
-import matplotlib.colors as mcolors
 import pandas as pd
 import pytest
 from matplotlib.axes import Axes
@@ -46,34 +45,14 @@ def test_bar_as_percent(df):
     assert any("%" in t.get_text() for t in ax.texts)
 
 
-def test_line_area_adds_gradient_image(df):
-    ax = plots.line(df, "age", "height", area=True)
-    assert len(ax.images) >= 1  # gradient fill image
-
-
-def test_stacked_area_uses_traffic_light_and_swatch_legend():
-    n = 20
-    sdf = pd.DataFrame({
-        "t": list(range(n)) * 3,
-        "v": [1.0] * (n * 3),
-        "sev": ["low"] * n + ["medium"] * n + ["high"] * n,
-    })
-    ax = plots.line(sdf, "t", "v", hue="sev", area=True, stack=True)
-    assert ax.get_legend() is not None  # swatch legend
-    faces = [tuple(round(c, 3) for c in coll.get_facecolor()[0])
-             for coll in ax.collections if len(coll.get_facecolor())]
-    for hexc in plots._TRAFFIC_LIGHT:
-        want = tuple(round(c, 3) for c in mcolors.to_rgba(hexc))
-        assert any(all(abs(f[i] - want[i]) < 0.02 for i in range(3)) for f in faces)
-
-
-def test_callouts_add_annotations(df):
+def test_scatter_callouts_add_annotations(df):
     import matplotlib.text as mtext
 
-    anns = [(df["age"].iloc[3], "event A"), (df["age"].iloc[5], "event B")]
-    ax = plots.line(df, "age", "height", annotations=anns)
+    plots.set_theme(style_preset="infographic")
+    anns = [(df["age"].iloc[3], df["height"].iloc[3], "event A")]
+    ax = plots.scatter(df, "age", "height", annotations=anns)
     drawn = [c for c in ax.get_children() if isinstance(c, mtext.Annotation)]
-    assert len(drawn) == 2
+    assert len(drawn) == 1
     assert all(a.arrow_patch is not None for a in drawn)
 
 
@@ -85,5 +64,5 @@ def test_infographic_ax_honored_and_no_mutation(df):
     fig, ax = plt.subplots()
     out = plots.bar(df, "city", ax=ax)
     assert out is ax
-    plots.line(df, "age", "height", area=True)
+    plots.scatter(df, "age", "height")
     pd.testing.assert_frame_equal(df, before)

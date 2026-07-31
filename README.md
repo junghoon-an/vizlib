@@ -56,8 +56,8 @@ dictionary.
 
 Plots live in `vizlib.plots` — **not** re-exported from the top level, so
 `import vizlib` stays fast. Every function **returns** the `Axes` it drew on
-(or a `Figure`/seaborn grid) and never calls `plt.show()`, so plots compose in
-notebooks and subplot grids — pass `ax=` to draw into an existing axis.
+and never calls `plt.show()`, so plots compose in notebooks and subplot
+grids — pass `ax=` to draw into an existing axis.
 
 ```python
 import matplotlib.pyplot as plt
@@ -68,7 +68,7 @@ df = vizlib.load("datasets/er_daily_visits.csv")
 plots.bar(df, "department",
           title="ER volume concentrates in a few departments",
           highlight="Cardiology", source="Source: intake log")
-plt.show()   # you call show(); vizlib only ever returns the Axes/Figure
+plt.show()   # you call show(); vizlib only ever returns the Axes
 ```
 
 Defaults follow the [Evergreen & Emery Data Visualization
@@ -139,22 +139,16 @@ plt.show()
 
 | Function | What it does |
 | --- | --- |
-| `bar(data, column=None, *, top=15, highlight=None, max_label_chars=None, ...)` | Value-counts bar: top-N + "Other", sorted, zero baseline, labelled past the tip. |
+| `bar(data, column=None, *, top=15, highlight=None, labels=None, max_label_chars=None, ...)` | Value-counts bar: top-N + "Other", sorted, zero baseline, labelled past the tip. |
 | `hist(series, *, bins="auto", kde=False, ...)` | Histogram of a numeric Series, optional KDE. |
-| `distribution(series, *, ...)` | Histogram + KDE + rug for a quick distribution read. |
 | `box(df, column=None, *, by=None, ...)` | Boxplot for spread/outliers; groups ordered by median. |
 | `scatter(df, x, y, *, hue=None, reg=False, annotations=None, ...)` | Two-column relationship; legend for `hue`; regression line (no CI band); callouts. |
-| `line(df, x, y, *, hue=None, area=False, stack=False, ...)` | Line/time-series; datetime axes, gradient/stacked area, callouts. |
-| `correlation_heatmap(df, *, method="pearson", annot=True, ...)` | Masked, annotated correlation matrix on a fixed `[-1, 1]` scale. |
-| `missing_bar(df, *, highlight=None, max_label_chars=None, ...)` | Per-column % missing, largest first, labelled past each bar tip. |
-| `missing_matrix(df, *, ...)` | Nullity matrix (dark cells mark missing values). |
-| `pairplot(df, *, hue=None, columns=None, ...)` | Scatter-matrix of numeric columns; returns the seaborn grid. |
 | `set_theme(*, style_preset="default"/"infographic"/"neon", ...)` | Switch the whole look and tune individual knobs. |
 
 Every plotting function (except `set_theme`) accepts keyword-only `title=`,
 `subtitle=`, `source=` and, where it composes, `ax=`. All parameters are
 keyword-only with defaults, so existing calls keep working; every function
-takes a pandas object, never mutates it, and returns the `Axes`/`Figure`.
+takes a pandas object, never mutates it, and returns the `Axes`.
 
 ## License
 

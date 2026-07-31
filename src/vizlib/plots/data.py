@@ -1,6 +1,6 @@
 """Small data-wrangling helpers shared by the plotting functions.
 
-These lean on the pandas-only cleaners in :mod:`vizlib.core` so the plots
+These lean on the pandas-only cleaners in :mod:`vizlib._coerce` so the plots
 accept numeric-looking string columns and messy inputs without the caller
 tidying first. Nothing here mutates its input.
 """
@@ -12,10 +12,9 @@ import pandas as pd
 from .._coerce import _coerce_numeric
 from .._validate import _require_series
 
-# Row counts above which scatter/pairplot auto-sample (deterministically) to
-# stay responsive. Override or disable with an explicit ``sample=``.
+# Row count above which scatter auto-samples (deterministically) to stay
+# responsive. Override or disable with an explicit ``sample=``.
 _AUTO_SAMPLE_SCATTER = 20_000
-_AUTO_SAMPLE_PAIRPLOT = 2_000
 
 
 def _resolve_column(data, column: str | None) -> pd.Series:
@@ -57,16 +56,3 @@ def _maybe_sample(frame: pd.DataFrame, sample, auto_threshold: int, random_state
     if n is not None and n < len(frame):
         return frame.sample(n=n, random_state=random_state)
     return frame
-
-
-def _upper_triangle_mask(corr: pd.DataFrame) -> pd.DataFrame:
-    """Boolean mask hiding the redundant upper triangle (incl. diagonal).
-
-    Built with pandas alone so this module's only hard imports stay
-    matplotlib, seaborn and pandas.
-    """
-    mask = pd.DataFrame(False, index=corr.index, columns=corr.columns)
-    for i in range(len(corr)):
-        for j in range(i, len(corr)):
-            mask.iat[i, j] = True
-    return mask

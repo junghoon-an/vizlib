@@ -1,6 +1,6 @@
-"""Contract tests for the relational and matrix charts, plus cross-cutting ones.
+"""Contract tests for ``scatter`` plus cross-cutting ones.
 
-Every plot returns an Axes/grid, honours ``ax=`` and never mutates its input.
+Every plot returns an Axes, honours ``ax=`` and never mutates its input.
 """
 
 import pandas as pd
@@ -36,32 +36,6 @@ def test_scatter_reg_draws_line_without_confidence_band(df):
     pd.testing.assert_frame_equal(df, before)
 
 
-def test_line_returns_axes(df):
-    _assert_axes(plots.line(df, "age", "height"))
-    _assert_axes(plots.line(df, "age", "height", hue="group"))
-
-
-def test_correlation_heatmap(df):
-    _assert_axes(plots.correlation_heatmap(df))
-
-
-def test_correlation_heatmap_needs_two_numeric():
-    with pytest.raises(ValueError):
-        plots.correlation_heatmap(pd.DataFrame({"a": [1, 2, 3]}))
-
-
-def test_missing_plots(df):
-    _assert_axes(plots.missing_bar(df))
-    _assert_axes(plots.missing_matrix(df))
-
-
-def test_pairplot_returns_grid(df):
-    from matplotlib.figure import Figure
-
-    grid = plots.pairplot(df)
-    assert isinstance(grid.figure, Figure)
-
-
 def test_ax_is_honored(df):
     import matplotlib.pyplot as plt
 
@@ -74,12 +48,6 @@ def test_plots_never_mutate_input(df):
     before = df.copy()
     plots.bar(df, "city", highlight="SF", title="t", subtitle="s", source="src")
     plots.hist(df["age"], title="t")
-    plots.distribution(df["age"])
     plots.box(df, "age", by="group")
     plots.scatter(df, "age", "height", hue="group", reg=True)
-    plots.line(df, "age", "height", hue="group")
-    plots.correlation_heatmap(df, subtitle="s")
-    plots.missing_bar(df, highlight="city")
-    plots.missing_matrix(df)
-    plots.pairplot(df, columns=["age", "height"])
     pd.testing.assert_frame_equal(df, before)
