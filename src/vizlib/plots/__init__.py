@@ -23,10 +23,11 @@ hooks — ``title``, ``subtitle``, ``source`` and ``highlight`` — with neutral
 defaults. Override ``title``/``subtitle`` with your actual finding; vizlib
 never fabricates a takeaway the data doesn't support.
 
-The implementation is split across small submodules (``theme``, ``chrome``,
-``margins``, ``marks``, ``data`` and one module per chart family); this file
-re-exports the public API so the whole layer is still reached as
-``vizlib.plots``.
+The implementation is split across small, single-responsibility submodules
+(configuration in ``palettes``/``theme``; shared visuals in ``colors``,
+``labels``, ``annotate``, ``chrome``, ``axes``, ``measure`` and ``margins``;
+one module per chart family); this file re-exports the public API so the whole
+layer is still reached as ``vizlib.plots``.
 """
 
 from __future__ import annotations
@@ -40,25 +41,30 @@ except ImportError as exc:  # pragma: no cover - exercised only without the deps
         'Install them with: pip install "vizlib[plot]"'
     ) from exc
 
-from .bars import bar, missing_bar
-from .distribution import box, distribution, hist
-from .matrix import correlation_heatmap, missing_matrix, pairplot
-from .relational import line, scatter
+from .bars import bar
+from .box import box
+from .distribution import distribution, hist
+from .heatmap import correlation_heatmap, missing_matrix
+from .line import line
+from .missing_bar import missing_bar
+from .options import Captions, ValueLabels
+from .pairplot import pairplot
+from .scatter import scatter
 from .theme import set_theme
 
-# Internal names re-exported for tests and advanced tuning (see the theme and
-# margins submodules). They stay importable as ``vizlib.plots._NAME`` so the
-# refactor into submodules is invisible to callers.
-from .margins import _HBAR_LEFT_CAP, _HBAR_RIGHT_CAP, _text_width_px  # noqa: F401
-from .theme import (  # noqa: F401
+# Internal names re-exported for tests and advanced tuning. They stay
+# importable as ``vizlib.plots._NAME`` so the split into submodules is
+# invisible to callers.
+from .margins import _HBAR_LEFT_CAP, _HBAR_RIGHT_CAP  # noqa: F401
+from .measure import _text_width_px  # noqa: F401
+from .palettes import (  # noqa: F401
     _DEFAULTS,
     _NEON_PALETTE,
     _PRESETS,
-    _THEME,
     _TRAFFIC_LIGHT,
     _VIVID_PALETTE,
-    _resolved_theme,
 )
+from .theme import _THEME, _resolved_theme  # noqa: F401
 
 __all__ = [
     "set_theme",
@@ -72,4 +78,6 @@ __all__ = [
     "missing_bar",
     "missing_matrix",
     "pairplot",
+    "Captions",
+    "ValueLabels",
 ]

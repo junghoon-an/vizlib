@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import pandas as pd
 
-from ..core import _coerce_numeric, _require_series
+from .._coerce import _coerce_numeric
+from .._validate import _require_series
 
 # Row counts above which scatter/pairplot auto-sample (deterministically) to
 # stay responsive. Override or disable with an explicit ``sample=``.
